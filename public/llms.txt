@@ -1,0 +1,83 @@
+# BillCrafter
+
+> Free online invoice generator for freelancers and small businesses. Create invoices, estimates, quotes and receipts in the browser, then download a clean, pixel-accurate PDF. No signup required to download your first PDF. Operated by CCC STUDIO (United States).
+
+## What it does
+
+- Invoice generator, estimate & quote generator, and receipt maker in one editor.
+- 45 free, editable templates across 8 layouts and 9 industry categories.
+- WYSIWYG editing: type directly on the document; totals and tax calculate live.
+- Multi-currency and region-aware tax formatting; 25+ currencies incl. USD, EUR, GBP, INR, USDT/USDC.
+- Free tier: 1 export without an account, 5 exports/month with a free account.
+- Every document downloads as PDF — one format, pixel-accurate, no watermark on any plan.
+- Pro (in private beta): unlimited exports, PAID/UNPAID status stamps, share links, recurring invoices.
+
+## Built for how trades and services actually bill
+
+These are the parts that differ from a generic invoice form, and the reason
+someone in a trade would pick this over a blank template:
+
+- **Job site address** — separate from the billing address, because trades bill the work location.
+- **Sections with their own subtotals** — group lines under Labor and Materials, or under rate bands like "Senior consultant — $185/hr". Each heading totals itself.
+- **Deposit due** — request a percentage or fixed amount up front. It prints on the document without changing the total.
+- **Payment schedule** — a milestone table on the invoice: deposit, progress payments, final, each with a date and amount.
+- **Job photos** — up to six captioned before/after photos at the foot of the invoice, exported inside the PDF. Used as proof of work by contractors, cleaners and pressure washing businesses.
+- **Timesheet mode** — a date column, hours instead of quantity, and a total-hours line, for anyone billing time.
+- **Service period** — the span of visits an invoice covers and how often you attend, for recurring cleaning, grounds maintenance and maintenance plans.
+- **E-signature** — sign an invoice and email the signed PDF, with a signing record kept.
+- **Crypto payment block** — USDT/USDC wallet address, network and a scannable QR code.
+
+## Key pages
+
+- Home / invoice generator: https://billcrafter.com/
+- All templates: https://billcrafter.com/templates
+- Template categories: https://billcrafter.com/templates/c/freelance-creative, /trades-construction, /home-auto, /health-beauty, /professional-services, /events-food, /retail-business, /estimates-quotes, /receipts
+
+### Document types
+
+- Estimate generator: https://billcrafter.com/estimate-generator
+- Quote generator: https://billcrafter.com/quote-generator
+- Receipt maker: https://billcrafter.com/receipt-maker
+- Proforma invoice generator: https://billcrafter.com/proforma-invoice-generator
+- Bill generator: https://billcrafter.com/bill-generator
+
+### Guides by trade
+
+- Freelance: https://billcrafter.com/freelance-invoice-generator
+- Contractor: https://billcrafter.com/contractor-invoice-generator
+- Handyman: https://billcrafter.com/handyman-invoice-template
+- Consulting: https://billcrafter.com/consulting-invoice-generator
+- Small business: https://billcrafter.com/small-business-invoice-generator
+- Photography: https://billcrafter.com/photography-invoice-template
+- Cleaning: https://billcrafter.com/cleaning-invoice-template
+- Lawn care & landscaping: https://billcrafter.com/lawn-care-invoice-template
+- Pressure washing: https://billcrafter.com/pressure-washing-invoice-template
+- Attorney / legal: https://billcrafter.com/attorney-invoice-template
+- Tutoring: https://billcrafter.com/tutoring-invoice-template
+
+### Guides by billing situation
+
+- Hourly invoice: https://billcrafter.com/hourly-invoice
+- Timesheet invoice: https://billcrafter.com/timesheet-invoice
+- Deposit invoice: https://billcrafter.com/deposit-invoice
+- Progress billing: https://billcrafter.com/progress-billing-invoice
+- Recurring invoice: https://billcrafter.com/recurring-invoice
+
+### Company
+
+- Pricing: https://billcrafter.com/#pricing
+- About: https://billcrafter.com/about
+- Changelog: https://billcrafter.com/changelog
+- Contact: https://billcrafter.com/contact
+
+## Languages
+
+Available in 15 languages with market-specific tax wording and currency:
+English, Spanish, Portuguese, French, German, Italian, Traditional Chinese,
+Russian, Bengali, Korean, Japanese, Dutch, Swedish, Indonesian, Vietnamese.
+Each language has one canonical home page at https://billcrafter.com/<code>.
+
+## Notes
+
+- BillCrafter is a document tool, not an accounting or legal service. Tax and contract rules vary by country and state, and the guides say so where it matters — in Brazil a PDF from here doesn't replace the nota fiscal, in Italy the SdI submission, in Korea a Hometax tax invoice, in Taiwan a 統一發票.
+- Content use: search and AI-answer citation are welcome, model training is not. See https://billcrafter.com/robots.txt (`Content-Signal: search=yes,ai-input=yes,ai-train=no`).

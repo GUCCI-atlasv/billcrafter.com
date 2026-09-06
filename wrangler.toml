@@ -1,0 +1,62 @@
+name = "billcrafter"
+main = ".open-next/worker.js"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+workers_dev = true
+
+# Keep custom domains attached across deploys (Dashboard + local stay in sync).
+routes = [
+  { pattern = "billcrafter.com", custom_domain = true },
+  { pattern = "www.billcrafter.com", custom_domain = true }
+]
+
+[assets]
+directory = ".open-next/assets"
+binding = "ASSETS"
+# Serve verification files (e.g. startupranking*.html) at their exact .html
+# path — default html_handling redirects /foo.html → /foo, which breaks
+# third-party domain checks that require the literal URL.
+html_handling = "none"
+# Run the Worker (and Next middleware) before ASSETS. Without this, prerendered
+# pages and sitemap.xml are served from the asset bundle on www.* and bypass
+# the www → apex host redirect.
+run_worker_first = true
+
+[[services]]
+binding = "WORKER_SELF_REFERENCE"
+service = "billcrafter"
+
+# --- D1 (database) ---
+[[d1_databases]]
+binding = "DB"
+database_name = "billcrafter"
+database_id = "8ab7db24-de35-4569-a6b4-197c573a695a"
+
+# --- R2 (signed PDFs) — create the bucket in the Cloudflare dashboard first:
+#     wrangler r2 bucket create billcrafter-assets
+[[r2_buckets]]
+binding = "FILE_STORAGE"
+bucket_name = "billcrafter-assets"
+
+# --- Browser Rendering (server-side PDF) ---
+# Requires the Workers Paid plan. Without this binding /api/pdf answers 503 and
+# the editor falls back to the in-browser renderer, so it is safe to deploy
+# before enabling it.
+[browser]
+binding = "BROWSER"
+
+# --- KV (sessions) ---
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "408b725c56b245e6bbc51e3fb4b86a10"
+
+# --- Public vars (non-secret) ---
+[vars]
+APP_URL = "https://billcrafter.com"
+PAYPAL_ENV = "live"   # set to "sandbox" while testing
+EMAIL_FROM = "BillCrafter <noreply@billcrafter.com>"
+
+# --- Secrets (set with: wrangler secret put NAME) ---
+# GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+# PAYPAL_CLIENT_ID, PAYPAL_SECRET, PAYPAL_PLAN_ID, PAYPAL_WEBHOOK_ID
+# EMAIL_API_KEY   (Resend)

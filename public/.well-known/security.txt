@@ -1,0 +1,24 @@
+# BillCrafter — security contact
+# Format: RFC 9116 (https://www.rfc-editor.org/rfc/rfc9116)
+#
+# NOTE: the Expires field below is mandatory and a file past its expiry is
+# treated as invalid. Renew it when it gets close — a calendar reminder a month
+# out is the usual way people avoid shipping a dead security.txt.
+
+Contact: mailto:support@billcrafter.com
+Contact: https://billcrafter.com/contact
+Expires: 2027-08-08T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://billcrafter.com/.well-known/security.txt
+Policy: https://billcrafter.com/terms
+
+# What we'd most like to hear about
+#
+# BillCrafter stores invoices, saved clients and e-signature records for
+# signed-in users. Anything touching those — access to another account's data,
+# authentication bypass on the magic-link flow, or a way to read stored
+# documents — is what matters most to us.
+#
+# Please don't run automated scans that generate invoice exports or outbound
+# email; those cost real money and land in real people's inboxes. Get in touch
+# first and we'll set you up.

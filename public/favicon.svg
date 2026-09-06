@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <rect width="32" height="32" rx="7" fill="#F43E01"/>
+  <g transform="translate(4.4,3.4) scale(0.48)">
+    <path d="M15 6 h14 l7 7 v27 a2 2 0 0 1-2 2 H15 a2 2 0 0 1-2-2 V8 a2 2 0 0 1 2-2 Z" fill="#FFFFFF"/>
+    <path d="M29 6 v7 h7" fill="none" stroke="#F43E01" stroke-width="2.2"/>
+    <text x="24.5" y="41" text-anchor="middle" font-size="20" font-weight="700" fill="#F43E01" font-family="Poppins,Helvetica,Arial,sans-serif">$</text>
+  </g>
+</svg>

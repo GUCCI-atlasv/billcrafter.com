@@ -1,0 +1,21 @@
+name = "billcrafter-cron"
+main = "src/index.js"
+compatibility_date = "2026-07-01"
+# Allow fetch() to the main app Worker on the same zone (billcrafter.com).
+compatibility_flags = ["global_fetch_strictly_public"]
+
+# Runs once daily at 09:00 UTC. Recurring invoices are date-based, not
+# time-of-day sensitive; the endpoint is idempotent per schedule because each
+# run advances next_run, so an extra fire cannot double-send.
+[triggers]
+crons = ["0 9 * * *"]
+
+[vars]
+# Use the main Worker's workers.dev URL (not the custom domain). Same-zone
+# Worker→Worker fetch to billcrafter.com can hit CF error 1042 / odd 404s;
+# workers.dev is a different zone and routes cleanly.
+TARGET_URL = "https://billcrafter.583079497.workers.dev/api/cron/recurring"
+
+# Secret (do NOT put it here — set it from the CLI):
+#   npx wrangler secret put CRON_SECRET
+# It must match the CRON_SECRET on the main billcrafter worker.

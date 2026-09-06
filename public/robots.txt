@@ -1,0 +1,111 @@
+# BillCrafter — https://billcrafter.com
+#
+# Our position on AI, in one line: read us, cite us, don't train on us.
+#
+# Content Signals separate ACCESS (can you fetch this?) from USE (what may you
+# do with it once fetched). That's why the crawlers below are allowed while
+# ai-train is no — it isn't a contradiction, it's the whole point of the spec.
+# See https://contentsignals.org and Cloudflare's announcement.
+#
+#   search=yes     index and rank us, link back to the source
+#   ai-input=yes   use our pages to answer a question now (RAG, grounding,
+#                  overviews) — we want to be the answer, with a citation
+#   ai-train=no    do not bake this content into model weights
+#
+# These are stated preferences, not enforcement. Anyone ignoring them is
+# ignoring a request, not defeating a lock.
+
+User-agent: *
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+
+# Server-side only — nothing here is a page worth crawling.
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+# The signed-in area (/invoicemanager) and share links (/i/...) are deliberately
+# left crawlable so robots can read the "noindex" tag those pages send. Blocking
+# them here would hide that tag, and a URL blocked in robots.txt can still be
+# indexed if something links to it.
+
+# ---------------------------------------------------------------------------
+# Named AI crawlers
+#
+# Each vendor runs several bots with different jobs, and they are listed
+# separately on purpose: the search and user-triggered ones are how we get
+# cited, so they matter most to us. The Content-Signal above carries the
+# no-training preference for all of them.
+# ---------------------------------------------------------------------------
+
+# OpenAI
+User-agent: OAI-SearchBot
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+User-agent: ChatGPT-User
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+User-agent: GPTBot
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+# Anthropic
+User-agent: Claude-SearchBot
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+User-agent: Claude-User
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+User-agent: ClaudeBot
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+# Perplexity
+User-agent: PerplexityBot
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+User-agent: Perplexity-User
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+# Google / Gemini grounding
+User-agent: Google-Extended
+Content-Signal: search=yes,ai-input=yes,ai-train=no
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
+Sitemap: https://billcrafter.com/sitemap.xml
+
+# A plain-language summary of what this site is, for AI systems that look for
+# one: https://billcrafter.com/llms.txt
