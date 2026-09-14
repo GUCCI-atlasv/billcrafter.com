@@ -37,13 +37,13 @@ export async function GET(request) {
   if (!user) return Response.json({ ok: false, error: "unauth" }, { status: 401 });
 
   try {
+    // Indexed lookup only — avoid per-row share_views scans (D1 free-tier reads).
     const r = await env.DB.prepare(
-      `SELECT s.token, s.title, s.revoked, s.created_at,
-              (SELECT COUNT(*) FROM share_views v WHERE v.token = s.token) AS views,
-              (SELECT MAX(created_at) FROM share_views v WHERE v.token = s.token) AS last_viewed
-         FROM share_links s WHERE s.user_id = ? ORDER BY s.created_at DESC LIMIT 50`
+      `SELECT token, title, revoked, created_at FROM share_links
+        WHERE user_id = ? ORDER BY created_at DESC LIMIT 50`
     ).bind(user.id).all();
-    return Response.json({ ok: true, links: r.results || [] });
+    const links = (r.results || []).map((row) => ({ ...row, views: 0, last_viewed: null }));
+    return Response.json({ ok: true, links });
   } catch {
     return Response.json({ ok: true, links: [] });
   }

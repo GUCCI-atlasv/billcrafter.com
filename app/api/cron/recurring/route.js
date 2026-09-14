@@ -27,7 +27,7 @@ export async function POST(request) {
   let due = [];
   try {
     const r = await env.DB.prepare(
-      "SELECT * FROM recurring WHERE active = 1 AND next_run <= ? ORDER BY next_run ASC LIMIT 50"
+      "SELECT id, user_id, user_email, title, doc_json, to_email, locale, freq, next_run, last_run, runs, active FROM recurring WHERE active = 1 AND next_run <= ? ORDER BY next_run ASC LIMIT 50"
     ).bind(now).all();
     due = r.results || [];
   } catch { return Response.json({ ok: false, error: "query_failed" }, { status: 500 }); }

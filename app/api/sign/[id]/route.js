@@ -15,7 +15,7 @@ export async function GET(request, { params }) {
 
   const { id } = await params;
   const row = await env.DB.prepare(
-    "SELECT * FROM signatures WHERE id = ? AND user_id = ?"
+    "SELECT id, user_id, invoice_no, doc_type, signer_name, consent_text, consent_at, ip, country, ua, sha256, bytes, created_at, r2_key FROM signatures WHERE id = ? AND user_id = ?"
   ).bind(id, user.id).first().catch(() => null);
   if (!row) return Response.json({ ok: false, error: "not_found" }, { status: 404 });
 
