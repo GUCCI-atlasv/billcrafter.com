@@ -11,9 +11,16 @@ export async function GET(request, { params }) {
   if (!env?.DB || !env?.SESSIONS) return json({ ok: false, error: "backend_unavailable" }, 503);
   const user = await getSessionUser(request, env);
   if (!user) return json({ ok: false, error: "unauth" }, 401);
-  const { results } = await env.DB
-    .prepare("SELECT id, data, created_at FROM records WHERE user_id = ? AND kind = ? ORDER BY created_at DESC")
-    .bind(user.id, k).all();
+  let results;
+  try {
+    const out = await env.DB
+      .prepare("SELECT id, data, created_at FROM records WHERE user_id = ? AND kind = ? ORDER BY created_at DESC")
+      .bind(user.id, k).all();
+    results = out?.results;
+  } catch (e) {
+    // Quota/outage must not look like "zero invoices" — empty items only on success.
+    return json({ ok: false, error: "db_unavailable", detail: String(e?.message || e).slice(0, 300) }, 503);
+  }
   // `_id` is the real DB row id (used for update/delete). `id` keeps the record's
   // own id from its payload when present (invoices carry a client-side id), which
   // is why we can't rely on `id` alone to address the row.

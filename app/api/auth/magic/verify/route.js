@@ -15,7 +15,13 @@ export async function GET(request) {
   const email = await consumeMagicToken(env, token);
   if (!email) return fail("link");
 
-  const user = await upsertUser(env, email);
+  let user;
+  try {
+    user = await upsertUser(env, email);
+  } catch {
+    // No D1 and no KV user cache — refuse a ghost session cookie.
+    return fail("backend");
+  }
   const sid = await createSession(env, user);
   return new Response(null, {
     status: 302,

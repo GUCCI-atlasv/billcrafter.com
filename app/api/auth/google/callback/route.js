@@ -43,7 +43,12 @@ export async function GET(request) {
   } catch { return fail("oauth_exchange"); }
 
   if (!email) return fail("oauth_email");
-  const user = await upsertUser(env, email);
+  let user;
+  try {
+    user = await upsertUser(env, email);
+  } catch {
+    return fail("backend");
+  }
   const sid = await createSession(env, user);
   const clearState = "g_state=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0";
   const headers = new Headers({ Location: `${origin}/invoicemanager` });
