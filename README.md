@@ -20,12 +20,12 @@ npm run build        # production build
 | `/freelance-invoice-generator`, `/contractor-invoice-generator`, `/estimate-generator`, `/quote-generator`, `/receipt-maker`, … | SEO matrix pages (config-driven, statically generated from `lib/seo.js`) |
 | `/dashboard` | Logged-in area (mock): KPIs, invoice history, clients, items, business profile |
 | `/admin` | Admin console. Seed login: `likethelocalsstudio@gmail.com` / `123456` |
-| `/api/*` | Backend route stubs: export quota, auth (magic link / Google), invoices, Stripe webhook, admin login |
+| `/api/*` | Backend route stubs: export quota, auth (magic link / Google), invoices, admin login |
 
 ## Key concepts
 
 - **WYSIWYG editor** — `components/InvoiceEditor.jsx` (client). Edit on the invoice itself; totals/tax/discount compute live; Type switcher (Invoice/Estimate/Quote/Receipt) with field differences + "convert to next".
-- **Export-quota freemium** (PRD §8.1): anonymous **1** export, registered free **10 / month**, **Pro $9.90/mo** unlimited. Enforced client-side here (localStorage); server enforcement stub in `app/api/export/route.js` + `db/schema.sql:export_usage`.
+- **Free model**: anonymous **1** export per day (by IP), registered accounts **unlimited**. No paid plans. Enforced server-side in `lib/server/quota.js` (the editor mirrors it for the counter).
 - **Download PDF** — uses `html2pdf` (loaded from CDN) for a one-click file download; **Print** uses the browser dialog (vector). For production-grade vector PDFs, render server-side with **Cloudflare Browser Rendering** (Puppeteer) — see TODO below.
 - **SEO matrix** — add a vertical/doc page by adding an object to `lib/seo.js` (near-zero marginal cost).
 - **Icons / logo** — Concept 2 (folded invoice + $), monochrome, in `public/` (`favicon.svg`, `icon-192/512.png`, `apple-touch-icon.png`).
@@ -48,9 +48,6 @@ wrangler d1 execute billcrafter --file=./db/schema.sql
 wrangler kv namespace create SESSIONS
 wrangler r2 bucket create billcrafter-assets
 # secrets:
-wrangler secret put STRIPE_SECRET_KEY
-wrangler secret put STRIPE_WEBHOOK_SECRET
-wrangler secret put STRIPE_PRICE_PRO
 wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put EMAIL_API_KEY
@@ -108,32 +105,14 @@ wrangler secret put EMAIL_API_KEY      # Resend API key
 ```
 Before you set `EMAIL_API_KEY`, the endpoint returns a one-time `devLink` in the response so you can test sign-in without email.
 
-## Pro billing — PayPal Subscriptions (implemented)
+## Pricing model — free (since Sep 2026)
 
-Pro ($9.90/mo) is billed with **PayPal Subscriptions**.
+There are no paid plans and no payment code. Limits live in `lib/server/quota.js`:
 
-**You set up the product in PayPal:**
-1. PayPal Dashboard → **Pay & Get Paid → Subscriptions → Create plan** (or via Catalog: create a Product, then a monthly Plan at **$9.90 USD / month**). Copy the **Plan ID** (`P-xxxx`).
-2. Get your app credentials: Developer Dashboard → Apps & Credentials → your app → **Client ID** + **Secret** (use Sandbox creds while testing).
-3. Create a **Webhook** pointing to `https://billcrafter.com/api/paypal/webhook`, subscribe to the `BILLING.SUBSCRIPTION.*` events, and copy its **Webhook ID**.
+- **No account:** 1 PDF export per UTC day, counted by IP (`anon_daily_usage`); status stamps are disabled (stripped server-side in `/api/pdf`).
+- **Free account:** unlimited exports, email, share links, recurring invoices, stamps and multiple business profiles.
 
-**Then set config:**
-```bash
-wrangler secret put PAYPAL_CLIENT_ID
-wrangler secret put PAYPAL_SECRET
-wrangler secret put PAYPAL_PLAN_ID       # P-xxxx
-wrangler secret put PAYPAL_WEBHOOK_ID
-# wrangler.toml [vars]: PAYPAL_ENV = "sandbox" (testing) or "live"
-wrangler d1 execute billcrafter --remote --file=./db/0005_paypal.sql
-npm run deploy
-```
-
-**Current setup — PayPal no-code payment link.** `/upgrade` links directly to the PayPal payment link (`app/upgrade/page.jsx`, constant `PAYPAL_LINK`). Users pay $9.90/mo on PayPal. Because a no-code link doesn't carry the account id, Pro is granted one of two ways:
-
-- **Automatic (best-effort):** set a PayPal account **Webhook → `/api/paypal/webhook`** (events `PAYMENT.SALE.COMPLETED`, `PAYMENT.CAPTURE.COMPLETED`, `BILLING.SUBSCRIPTION.*`). The webhook matches the **payer email** to the BillCrafter account email and sets `users.plan = 'pro'`. Users are told on `/upgrade` to pay with the same email.
-- **Manual (always works):** in `/admin → Users`, click **Make Pro / Make Free** on a user (writes `users.plan`, logged to the audit trail). Route: `app/api/admin/set-plan`.
-
-To switch to a fully-automatic **PayPal Subscriptions** flow later (account-bound `custom_id`, no email matching), create a subscription **Plan**, set `PAYPAL_CLIENT_ID/SECRET/PLAN_ID/WEBHOOK_ID`, and swap `/upgrade` to render `components/PayPalSubscribe.jsx` (already built) — it uses `createSubscription({ plan_id, custom_id: email })` + `/api/paypal/confirm`. Files: `lib/server/paypal.js`, `app/api/paypal/*`.
+Apply the migration once: `wrangler d1 execute billcrafter --remote --file=./db/0016_free_model.sql`. `/upgrade` permanently redirects to `/signup`. Old PayPal secrets can be removed with `wrangler secret delete PAYPAL_CLIENT_ID` (etc.).
 
 ## Backend TODO (to go from scaffold → production)
 

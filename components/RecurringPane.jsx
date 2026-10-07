@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { money } from "@/lib/invoice";
-import { PRO_BETA } from "@/lib/billing";
 
 const FREQS = [
   ["weekly", "Weekly"],
@@ -19,8 +17,7 @@ const fmtDate = (ms) => {
 };
 const todayISO = (offset = 0) => { const d = new Date(); d.setDate(d.getDate() + offset); return d.toISOString().slice(0, 10); };
 
-export default function RecurringPane({ plan, history = [] }) {
-  const isPro = plan === "pro";
+export default function RecurringPane({ history = [] }) {
   const [items, setItems] = useState(null);   // null = loading
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,7 +50,6 @@ export default function RecurringPane({ plan, history = [] }) {
       });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.ok) { setOpen(false); setForm({ invoiceId: "", toEmail: "", freq: "monthly", startDate: todayISO(1) }); load(); }
-      else if (r.status === 402) alert("Recurring invoices are a Pro feature.");
       else alert("Couldn't create the schedule. Please try again.");
     } catch { alert("Couldn't create the schedule. Please try again."); }
     finally { setBusy(false); }
@@ -78,22 +74,10 @@ export default function RecurringPane({ plan, history = [] }) {
             Reissue a saved invoice on a schedule and email it to your client automatically.
           </div>
         </div>
-        {isPro && !open && <button className="btn btn-solid" onClick={() => setOpen(true)}>+ New schedule</button>}
+        {!open && <button className="btn btn-solid" onClick={() => setOpen(true)}>+ New schedule</button>}
       </div>
 
-      {!isPro && (
-        <div className="upgrade-banner" style={{ marginBottom: 22 }}>
-          <div className="txt">
-            <strong>Recurring invoices are a Pro feature.</strong>{" "}
-            <span className="muted">
-              {PRO_BETA ? "Pro is in private beta and not on sale yet." : "Upgrade to schedule invoices automatically."}
-            </span>
-          </div>
-          <Link className="btn btn-solid" href="/upgrade">About Pro</Link>
-        </div>
-      )}
-
-      {isPro && open && (
+      {open && (
         <div className="entity-form">
           <div>
             <label className="field-label">Repeat this saved invoice</label>
@@ -148,7 +132,7 @@ export default function RecurringPane({ plan, history = [] }) {
         <div className="empty-box">
           <h3>No schedules yet</h3>
           <div>Set one up and the same invoice goes out every week, month or quarter — automatically.</div>
-          {isPro && history.length > 0 && !open && (
+          {history.length > 0 && !open && (
             <div style={{ marginTop: 14 }}><button className="btn btn-solid" onClick={() => setOpen(true)}>+ New schedule</button></div>
           )}
         </div>

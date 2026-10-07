@@ -17,30 +17,17 @@
 // answers 503 and the client falls back to the existing html2pdf path, so
 // deploying it cannot make the current behaviour worse.
 import { getEnv, getSessionUser } from "@/lib/server/auth";
+import { ANON_DAILY_LIMIT, clientIp, anonUsedToday, chargeAnon, recordMemberExport } from "@/lib/server/quota";
 
 export const dynamic = "force-dynamic";
-
-const LIMIT_ANON = 1;
-const LIMIT_FREE = 5;
-const month = () => new Date().toISOString().slice(0, 7);
-
-function clientIp(request) {
-  const h = request.headers;
-  return (
-    h.get("cf-connecting-ip") ||
-    h.get("x-real-ip") ||
-    (h.get("x-forwarded-for") || "").split(",")[0].trim() ||
-    null
-  );
-}
 
 // Two separate things are being limited here, and an earlier version of this
 // file confused them.
 //
-//   The PRODUCT allowance — how many invoices a plan may export in a month —
-//   belongs to the user. It is charged only when a PDF is actually delivered.
-//   Charging it on every attempt meant our own renderer failing quietly ate
-//   someone's month: a few 502s and a paying-attention user is locked out of a
+//   The PRODUCT allowance — one export a day without an account, unlimited
+//   with one (lib/server/quota.js) — belongs to the user. It is charged only
+//   when a PDF is actually delivered. Charging it on every attempt meant our
+//   own renderer failing quietly ate someone's allowance: a few 502s and a paying-attention user is locked out of a
 //   button that never produced anything for them. That is the worst possible
 //   way to spend someone's allowance.
 //
@@ -55,18 +42,10 @@ const ATTEMPT_MAX = 12;       // browser launches per window per caller
 
 async function readAllowance(env, request) {
   const user = env.SESSIONS ? await getSessionUser(request, env) : null;
-  if (user && user.plan === "pro") return { allowed: true, user, ip: null };
-  const m = month();
-  if (user) {
-    const row = await env.DB.prepare("SELECT count FROM export_usage WHERE user_id = ? AND month = ?")
-      .bind(user.id, m).first().catch(() => null);
-    return { allowed: (row?.count || 0) < LIMIT_FREE, user, ip: null };
-  }
+  if (user) return { allowed: true, user, ip: null };
   const ip = clientIp(request);
   if (!ip) return { allowed: false, user: null, ip: null };
-  const row = await env.DB.prepare("SELECT count FROM anon_usage WHERE ip = ? AND month = ?")
-    .bind(ip, m).first().catch(() => null);
-  return { allowed: (row?.count || 0) < LIMIT_ANON, user: null, ip };
+  return { allowed: (await anonUsedToday(env, ip)) < ANON_DAILY_LIMIT, user: null, ip };
 }
 
 // Best-effort rolling cap on browser launches. KV has no atomic increment, so a
@@ -83,22 +62,9 @@ async function tooManyAttempts(env, request, user) {
 
 // Charged only once the file is on its way to the caller.
 async function chargeExport(env, user, ip) {
-  const now = Date.now();
-  const m = month();
   try {
-    if (user) {
-      if (user.plan === "pro") return;
-      await env.DB.prepare(
-        "INSERT INTO export_usage (user_id, month, count, updated_at) VALUES (?, ?, 1, ?) " +
-        "ON CONFLICT(user_id, month) DO UPDATE SET count = count + 1, updated_at = ?"
-      ).bind(user.id, m, now, now).run();
-      return;
-    }
-    if (!ip) return;
-    await env.DB.prepare(
-      "INSERT INTO anon_usage (ip, month, count, updated_at) VALUES (?, ?, 1, ?) " +
-      "ON CONFLICT(ip, month) DO UPDATE SET count = count + 1, updated_at = ?"
-    ).bind(ip, m, now, now).run();
+    if (user) await recordMemberExport(env, user.id);   // stats only — accounts are unlimited
+    else await chargeAnon(env, ip);
   } catch {}
 }
 
@@ -119,6 +85,8 @@ export async function POST(request) {
   if (!quota.allowed) {
     return Response.json({ ok: false, error: "quota", counted: false }, { status: 402 });
   }
+  // Status stamps (PAID / UNPAID …) need an account.
+  if (!quota.user && doc.stamp) doc.stamp = "";
   if (await tooManyAttempts(env, request, quota.user)) {
     // Nothing is charged: this is our cost cap, not the caller's allowance.
     return Response.json({ ok: false, error: "rate_limited", counted: false }, { status: 429 });

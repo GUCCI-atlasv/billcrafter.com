@@ -16,6 +16,7 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [pane, setPane] = useState("overview");
   const [stats, setStats] = useState(null);
+  const [statsErr, setStatsErr] = useState("");
   const [unavailable, setUnavailable] = useState(false);
   const [pwForm, setPwForm] = useState({ current: "", next: "", confirm: "" });
   const [pwMsg, setPwMsg] = useState({ type: "", text: "" });
@@ -34,12 +35,20 @@ export default function Admin() {
 
   useEffect(() => { if (admin) loadStats(); }, [admin]);
   async function loadStats() {
-    try { const r = await fetch("/api/admin/stats"); if (r.ok) { const d = await r.json(); if (d.ok) setStats(d); } } catch {}
-  }
-  async function setUserPlan(email, plan) {
-    if (!confirm(`Set ${email} to ${plan.toUpperCase()}?`)) return;
-    try { await fetch("/api/admin/set-plan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, plan }) }); } catch {}
-    loadStats();
+    setStatsErr("");
+    try {
+      const r = await fetch("/api/admin/stats");
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.ok) { setStats(d); return; }
+      if (d.error === "d1_quota_exceeded" || r.status === 503) {
+        setStatsErr(d.detail || "Database daily read quota exceeded. Data will be available again after midnight UTC, or upgrade Cloudflare D1.");
+        return;
+      }
+      if (r.status === 401) { setStatsErr("Session expired. Please sign in again."); return; }
+      setStatsErr(d.detail || d.error || "Could not load admin data.");
+    } catch {
+      setStatsErr("Could not load admin data. Please try again.");
+    }
   }
   async function deleteUser(email) {
     if (!confirm(`Delete ${email}? This permanently removes the account and ALL of their invoices, clients and data.`)) return;
@@ -106,13 +115,20 @@ export default function Admin() {
     );
   }
 
-  const NAV = [["overview", "Overview"], ["users", "Users"], ["traffic", "Traffic"], ["subs", "Subscriptions"], ["payments", "Payments"], ["emails", "Email log"], ["content", "Content / SEO"], ["audit", "Audit log"], ["account", "Account"]];
+  const NAV = [["overview", "Overview"], ["users", "Users"], ["traffic", "Traffic"], ["emails", "Email log"], ["content", "Content / SEO"], ["audit", "Audit log"], ["account", "Account"]];
   const kpis = stats ? [
     ["Total users", stats.kpis.users, "registered accounts"],
-    ["Pro subscribers", stats.kpis.pro, "on the $9.90 plan"],
+    ["Emails sent", stats.kpis.emailsSent, "invoices emailed to clients"],
     ["Invoices saved", stats.kpis.invoices, "across all users"],
     ["Clients stored", stats.kpis.clients, "in address books"],
   ] : [];
+  const loadingBox = statsErr ? (
+    <div className="empty-box">
+      <h3>Admin data unavailable</h3>
+      <div>{statsErr}</div>
+      <button className="btn btn-ghost btn-sm" style={{ marginTop: 12 }} onClick={loadStats}>Retry</button>
+    </div>
+  ) : <div className="empty-box">Loading live data…</div>;
 
   return (
     <div className="app">
@@ -128,12 +144,12 @@ export default function Admin() {
         {pane === "overview" && (
           <>
             <h1 style={{ fontSize: 22, marginBottom: 18 }}>Overview</h1>
-            {!stats ? <div className="empty-box">Loading live data…</div> : (
+            {!stats ? loadingBox : (
               <>
                 <div className="kpis">{kpis.map(([lb, vl, dl]) => <div className="kpi" key={lb}><div className="lb">{lb}</div><div className="vl">{vl}</div><div className="dl">{dl}</div></div>)}</div>
                 <div className="panel">
                   <div className="panel-h"><h3>Recent users</h3><button className="btn btn-ghost btn-sm" onClick={() => setPane("users")}>View all</button></div>
-                  <UsersTable rows={(stats.recentUsers || []).slice(0, 8)} onSetPlan={setUserPlan} onDelete={deleteUser} />
+                  <UsersTable rows={(stats.recentUsers || []).slice(0, 8)} onDelete={deleteUser} />
                 </div>
               </>
             )}
@@ -142,23 +158,13 @@ export default function Admin() {
 
         {pane === "users" && (
           <><h1 style={{ fontSize: 22, marginBottom: 18 }}>Users</h1>
-            <div className="panel">{stats ? <UsersTable rows={stats.recentUsers || []} onSetPlan={setUserPlan} onDelete={deleteUser} /> : <div className="empty-box">Loading…</div>}</div></>
-        )}
-
-        {pane === "subs" && (
-          <><h1 style={{ fontSize: 22, marginBottom: 18 }}>Subscriptions</h1>
-            <div className="kpis" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-              <div className="kpi"><div className="lb">Pro subscribers</div><div className="vl">{stats?.kpis.pro ?? "—"}</div><div className="dl">paying · $9.90 / month</div></div>
-              <div className="kpi"><div className="lb">Est. MRR</div><div className="vl">${stats ? (stats.kpis.pro * 9.9).toFixed(2) : "—"}</div><div className="dl">paying Pro × $9.90</div></div>
-              <div className="kpi"><div className="lb">Test accounts</div><div className="vl">{stats?.kpis.test ?? "—"}</div><div className="dl">comp Pro · excluded from MRR</div></div>
-            </div>
-            <div className="panel"><div className="empty-box">Live billing detail comes from Stripe. Connect the Stripe webhook to populate subscription rows here.</div></div></>
+            <div className="panel">{stats ? <UsersTable rows={stats.recentUsers || []} onDelete={deleteUser} /> : loadingBox}</div></>
         )}
 
         {pane === "traffic" && (
           <><h1 style={{ fontSize: 22, marginBottom: 18 }}>Traffic</h1>
             <div className="kpis" style={{ gridTemplateColumns: "repeat(3,1fr)" }}>
-              <div className="kpi"><div className="lb">Unique visitors</div><div className="vl">{stats?.kpis.uniqueVisitors ?? "—"}</div><div className="dl">distinct IPs</div></div>
+              <div className="kpi"><div className="lb">Unique visitors</div><div className="vl">{stats?.kpis.uniqueVisitors ?? "—"}</div><div className="dl">distinct IPs, recent sample</div></div>
               <div className="kpi"><div className="lb">Exports</div><div className="vl">{stats?.kpis.exportsTotal ?? "—"}</div><div className="dl">all formats</div></div>
               <div className="kpi"><div className="lb">Events shown</div><div className="vl">{stats?.traffic?.length ?? "—"}</div><div className="dl">most recent 100</div></div>
             </div>
@@ -189,29 +195,6 @@ export default function Admin() {
                   ))}</tbody>
                 </table>
               ) : <div className="empty-box"><h3>No traffic recorded yet</h3><div>Visitor IPs and template exports will appear here.</div></div>}
-            </div></>
-        )}
-
-        {pane === "payments" && (
-          <><h1 style={{ fontSize: 22, marginBottom: 18 }}>Payments (Waffo webhooks)</h1>
-            <div className="kpis" style={{ gridTemplateColumns: "repeat(2,1fr)" }}>
-              <div className="kpi"><div className="lb">Entitlement events</div><div className="vl">{stats?.kpis.paymentsOk ?? "—"}</div><div className="dl">Pro granted / revoked</div></div>
-              <div className="kpi"><div className="lb">Recent webhooks</div><div className="vl">{stats?.webhooks?.length ?? "—"}</div><div className="dl">last 100 shown</div></div>
-            </div>
-            <div className="panel">
-              {stats && stats.webhooks && stats.webhooks.length ? (
-                <table className="data"><thead><tr><th>When</th><th>Event</th><th>Ref</th><th>Amount</th><th>Result</th></tr></thead>
-                  <tbody>{stats.webhooks.map((w, i) => (
-                    <tr key={i}>
-                      <td className="muted">{fmtDate(w.created_at)}</td>
-                      <td className="muted">{w.event_type || "—"}</td>
-                      <td>{w.ref || "—"}</td>
-                      <td className="muted">{w.amount ? `${w.amount} ${w.currency || ""}`.trim() : "—"}</td>
-                      <td><span className={"st " + (w.status === "pro_granted" ? "st-paid" : (w.status === "bad_signature" || w.status === "error" ? "st-draft" : "st-draft"))}>{w.status}</span></td>
-                    </tr>
-                  ))}</tbody>
-                </table>
-              ) : <div className="empty-box"><h3>No payment webhooks yet</h3><div>Waffo payment events will appear here once your test webhook fires.</div></div>}
             </div></>
         )}
 
@@ -283,37 +266,25 @@ export default function Admin() {
   );
 }
 
-function UsersTable({ rows, onSetPlan, onDelete }) {
+function UsersTable({ rows, onDelete }) {
   if (!rows || !rows.length) return <div className="empty-box"><h3>No users yet</h3><div>Accounts will appear here as people sign up.</div></div>;
-  const acts = onSetPlan || onDelete;
+  // No plan tiers any more: every account is free and unlimited.
   return (
     <table className="data">
-      <thead><tr><th>Email</th><th>Plan</th><th>Joined</th>{acts ? <th></th> : null}</tr></thead>
-      <tbody>{rows.map((u) => {
-        const plan = u.plan || "free";
-        const isTest = plan === "pro" && Number(u.comp) === 1;   // comp Pro
-        const isPro = plan === "pro" && !isTest;                 // paying Pro
-        const status = isTest ? "test" : isPro ? "pro" : "free";
-        return (
-          <tr key={u.email}>
-            <td>{u.email}</td>
-            <td>{isTest
-              ? <span className="st" style={{ background: "var(--brand-wash)", color: "var(--brand-ink)" }}>test</span>
-              : <span className={"st " + (isPro ? "st-paid" : "st-draft")}>{status}</span>}</td>
-            <td className="muted">{fmtDate(u.created_at)}</td>
-            {acts ? (
-              <td>
-                <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
-                  {onSetPlan && !isPro && <button className="btn btn-ghost btn-sm" onClick={() => onSetPlan(u.email, "pro")}>Make Pro</button>}
-                  {onSetPlan && !isTest && <button className="btn btn-ghost btn-sm" onClick={() => onSetPlan(u.email, "test")}>Make Test</button>}
-                  {onSetPlan && status !== "free" && <button className="btn btn-ghost btn-sm" onClick={() => onSetPlan(u.email, "free")}>Make Free</button>}
-                  {onDelete && <button className="btn btn-ghost btn-sm" style={{ color: "var(--brand)" }} onClick={() => onDelete(u.email)}>Delete</button>}
-                </div>
-              </td>
-            ) : null}
-          </tr>
-        );
-      })}</tbody>
+      <thead><tr><th>Email</th><th>Joined</th>{onDelete ? <th></th> : null}</tr></thead>
+      <tbody>{rows.map((u) => (
+        <tr key={u.email}>
+          <td>{u.email}</td>
+          <td className="muted">{fmtDate(u.created_at)}</td>
+          {onDelete ? (
+            <td>
+              <div style={{ display: "flex", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <button className="btn btn-ghost btn-sm" style={{ color: "var(--brand)" }} onClick={() => onDelete(u.email)}>Delete</button>
+              </div>
+            </td>
+          ) : null}
+        </tr>
+      ))}</tbody>
     </table>
   );
 }

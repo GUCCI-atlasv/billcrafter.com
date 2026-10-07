@@ -10,7 +10,6 @@ import { getUser, setUser, clearUser } from "@/lib/auth";
 import { buildActivity, heatLevel } from "@/lib/store";
 import { listKind, createKind, updateKind, removeKind } from "@/lib/api";
 import { readLogoFile } from "@/lib/logo";
-import { PRO_BETA } from "@/lib/billing";
 import RecurringPane from "@/components/RecurringPane";
 import ReviewCta from "@/components/ReviewCta";
 
@@ -57,10 +56,9 @@ export default function Dashboard() {
 
   if (user === undefined) return null;
 
-  const plan = user.plan || "free";
   const name = (user.email || "there").split("@")[0];
   const initials = (user.email || "U").slice(0, 2).toUpperCase();
-  const canMultiProfile = plan === "teams";
+  const canMultiProfile = true;   // free for everyone — no plan tiers
 
   async function signOut() { try { await fetch("/api/auth/logout", { method: "POST" }); } catch {} clearUser(); router.replace("/login"); }
   async function refreshHistory() { setHistory(await listKind(user.email, "invoices")); }
@@ -159,19 +157,11 @@ export default function Dashboard() {
             </div>
           </div>
         )}
-        {plan !== "pro" && (
-          <div className="upgrade-banner">
-            <div className="txt">
-              <strong>You’re on the Free plan</strong> <span className="muted">— 5 exports/month. {PRO_BETA ? "Pro (unlimited exports) is in private beta." : "Go Pro for unlimited exports, status stamps and share links."}</span>
-            </div>
-            <Link className="btn btn-solid" href="/upgrade">{PRO_BETA ? "About Pro" : "Upgrade to Pro — $9.90/mo"}</Link>
-          </div>
-        )}
         {/* DASHBOARD */}
         {pane === "dashboard" && (
           <>
             <div className="welcome">
-              <div><h1>Welcome back, {name} <span className="plan-badge">{plan === "teams" ? "Teams" : plan === "pro" ? "Pro" : "Free"} member</span></h1>
+              <div><h1>Welcome back, {name} <span className="plan-badge">Free member</span></h1>
                 <div className="muted" style={{ fontSize: 13, marginTop: 2 }}>Here's your billing activity.</div></div>
               <button className="btn btn-solid" onClick={() => { setPane("invoices"); setForm(null); setCreating({ type: "invoice", scenario: "blank", key: "new-" + Date.now() }); }}>+ New invoice</button>
             </div>
@@ -273,7 +263,7 @@ export default function Dashboard() {
         )}
 
         {/* CLIENTS */}
-        {pane === "recurring" && <RecurringPane plan={plan} history={history} />}
+        {pane === "recurring" && <RecurringPane history={history} />}
 
         {pane === "clients" && (
           <EntityPane
@@ -311,7 +301,7 @@ export default function Dashboard() {
           <>
             <div className="welcome">
               <div><h1>Business profile{canMultiProfile ? "s" : ""}</h1>
-                <div className="muted" style={{ fontSize: 13 }}>{canMultiProfile ? "Teams can keep multiple profiles (brands/entities)." : "Auto-filled into the “From” block of every document."}</div></div>
+                <div className="muted" style={{ fontSize: 13 }}>{canMultiProfile ? "Keep a profile for each brand or entity." : "Auto-filled into the “From” block of every document."}</div></div>
               {(canMultiProfile || data.profiles.length === 0) && !form && (<button className="btn btn-solid" onClick={() => openForm("profile")}>+ Add profile</button>)}
             </div>
 

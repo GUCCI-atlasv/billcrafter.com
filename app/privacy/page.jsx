@@ -12,7 +12,7 @@ export const metadata = {
 // which the read-only static-assets cache can't persist — see open-next.config.)
 export const dynamic = "force-static";
 
-const UPDATED = "July 15, 2026";
+const UPDATED = "September 15, 2026";
 
 export default function Privacy() {
   return (
@@ -34,8 +34,7 @@ export default function Privacy() {
             <li><strong>Account data.</strong> When you create an account we store your email address and a <strong>hashed</strong> password (we never store passwords in plain text). If you request a magic-link sign-in, we temporarily store a one-time token tied to your email. If you sign in with Google (when enabled), we receive your basic profile email.</li>
             <li><strong>Content you enter.</strong> The business details, clients, saved items, and invoices/estimates/quotes/receipts you create and choose to save to your account.</li>
             <li><strong>Email send data.</strong> When you email an invoice, we record metadata such as your account email, the recipient address, subject line, attachment filename, delivery status, and any provider error message. We also process the message body and PDF you asked us to send.</li>
-            <li><strong>Usage data.</strong> Counts needed to enforce export limits (anonymous 1 export per month by IP, free 5/month, Pro unlimited), and basic, aggregated analytics about how the Service is used.</li>
-            <li><strong>Payment data.</strong> If you subscribe to Pro, payments are processed by <strong>PayPal</strong>. We receive your subscription status but <strong>do not store your card or PayPal account details</strong>.</li>
+            <li><strong>Usage data.</strong> Counts needed to enforce the export limit for visitors without an account (1 export per day, counted by IP), and basic, aggregated analytics about how the Service is used.</li>
             <li><strong>Contact form data.</strong> If you write to us via the contact page, we receive the name, email, and message you submit.</li>
             <li><strong>Device &amp; log data.</strong> IP address, browser type, and request logs, used for security and to operate the Service.</li>
           </ul>
@@ -46,7 +45,7 @@ export default function Privacy() {
             <li>Provide, maintain, and secure the Service and your account.</li>
             <li>Save and sync your business profile, clients, items, and documents.</li>
             <li>Send magic-link sign-in emails and deliver invoice PDFs you choose to email to clients.</li>
-            <li>Enforce free/paid export limits and process Pro subscriptions.</li>
+            <li>Enforce the daily export limit for visitors without an account.</li>
             <li>Detect, prevent, and respond to fraud, abuse, spam, and security incidents.</li>
             <li>Communicate with you about your account, security, and product updates.</li>
             <li>Improve the Service using aggregated, non-identifying insights.</li>
@@ -68,7 +67,6 @@ export default function Privacy() {
           <p>We share data only with service providers that help us run the Service, under contracts that protect your data:</p>
           <ul>
             <li><strong>Cloudflare</strong> — hosting, database (D1), and sessions (KV).</li>
-            <li><strong>PayPal</strong> — subscription billing for Pro.</li>
             <li><strong>Resend</strong> — transactional and invoice email delivery.</li>
           </ul>
           <p>We may also disclose information to comply with the law, enforce our Terms, or in connection with a merger or acquisition (with notice where required). We do not sell personal data.</p>

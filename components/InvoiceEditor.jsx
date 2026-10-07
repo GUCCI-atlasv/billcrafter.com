@@ -5,21 +5,23 @@ import Link from "next/link";
 import { CURRENCIES, TYPES, ACCENTS, SCENARIOS, CRYPTO, isCrypto, money, computeTotals, sectionSubtotal, nextInvNo, currencyDecimals, roundMoney, taxModeOf } from "@/lib/invoice";
 import { qrSvg } from "@/lib/qr";
 import { docType, t, intlTag, localeCurrency, localeTaxLabel, stampLabel, STAMP_KEYS } from "@/lib/i18n";
-import { PRO_BETA } from "@/lib/billing";
 import { getUser as readUser, setUser as persistUser, clearUser } from "@/lib/auth";
 import { listKind } from "@/lib/api";
 import { readLogoFile, readPhotoFile } from "@/lib/logo";
 import ReviewCta from "@/components/ReviewCta";
 import SignatureModal from "@/components/SignatureModal";
 
-// Mirrors LIMIT_ANON / LIMIT_FREE in app/api/usage/route.js — the server is the
-// authority, this is only for showing the counter and gating the UI early.
+// BillCrafter is free. Mirrors ANON_DAILY_LIMIT in lib/server/quota.js — the
+// server is the authority, this is only for showing the counter and gating the
+// UI early.
 //
-// Entitlements are counted in exports, never in features: every plan gets the
-// same PDF, the same 45 templates, no watermark. Only the number of exports a
-// month differs. Print stays ungated on purpose — it's a browser function, and
-// blocking it would only teach people to screenshot the invoice.
-const PLAN_LIMITS = { anon: 1, free: 5, pro: Infinity };
+//   no account -> 1 PDF export per day (counted by IP), no status stamps
+//   free account -> unlimited exports and every feature
+//
+// Print stays ungated on purpose — it's a browser function, and blocking it
+// would only teach people to screenshot the invoice.
+const ANON_DAILY_LIMIT = 1;
+const utcDay = () => new Date().toISOString().slice(0, 10);
 const blankItem = () => ({ desc: "", detail: "", qty: 1, rate: 0, tax: true });
 // A timesheet row is an ordinary line item that also carries a date: qty is
 // hours, rate is the hourly rate. Keeping it the same shape means totals, tax,
@@ -60,13 +62,13 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   const [user, setUser] = useState(null);
   const [history, setHistory] = useState([]);
   const [authOpen, setAuthOpen] = useState(false);
-  const [authTitle, setAuthTitle] = useState("Save your invoice — for free");
+  const [authTitle, setAuthTitle] = useState(null); // null → "Save your <doc type> — for free"
   const [authEmail, setAuthEmail] = useState("");
   const [authPass, setAuthPass] = useState("");
   const [authBusy, setAuthBusy] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
-  const [usage, setUsage] = useState({ anon: 0, month: "", count: 0 });
+  const [usage, setUsage] = useState({ day: "", anon: 0 });
   const [emailOpen, setEmailOpen] = useState(false);
   const [thanksOpen, setThanksOpen] = useState(false);
   const [emailTo, setEmailTo] = useState("");
@@ -141,7 +143,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     }).catch(() => {});
     try { const h = JSON.parse(localStorage.getItem("bc_history")); if (h) setHistory(h); } catch {}
     try { const us = JSON.parse(localStorage.getItem("bc_usage")); if (us) setUsage(us); } catch {}
-    syncUsage();  // server is the source of truth (IP for anon, account for free)
+    syncUsage();  // server is the source of truth (anonymous exports are counted by IP)
     if (initialSnapshot && initialSnapshot.items) {
       // Reopen or duplicate a saved invoice.
       loadSnap(initialSnapshot);
@@ -551,7 +553,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   }
 
   // ---- auth (real server session) ----
-  function openAuth(title) { if (user) { setDrawerOpen(true); return; } setAuthTitle(title || "Save your invoice — for free"); setAuthOpen(true); }
+  function openAuth(title) { if (user) { setDrawerOpen(true); return; } setAuthTitle(title || null); setAuthOpen(true); }
   async function signInPassword() {
     const email = authEmail.trim().toLowerCase();
     if (!/.+@.+\..+/.test(email)) { alert("Please enter a valid email."); return; }
@@ -592,55 +594,39 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     if (!confirm("Sign out?")) return;
     try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
     clearUser(); setUser(null); setDrawerOpen(false);
+    setStamp("");   // status stamps need an account
   }
 
   // ---- export quota ----
-  function planOf() { return user ? (user.plan === "pro" ? "pro" : "free") : "anon"; }
+  function planOf() { return user ? "member" : "anon"; }
   function remaining() {
-    const plan = planOf(); const limit = PLAN_LIMITS[plan];
-    if (limit === Infinity) return Infinity;
-    if (plan === "anon") return Math.max(0, limit - (usage.anon || 0));
-    const m = new Date().toISOString().slice(0, 7);
-    const count = usage.month === m ? usage.count : 0;
-    return Math.max(0, limit - count);
+    if (user) return Infinity;
+    const used = usage.day === utcDay() ? (usage.anon || 0) : 0;
+    return Math.max(0, ANON_DAILY_LIMIT - used);
   }
-  // Pull the authoritative per-account counter from the server (D1).
+  function storeUsage(next) {
+    try { localStorage.setItem("bc_usage", JSON.stringify(next)); } catch {}
+    return next;
+  }
+  // Pull the authoritative anonymous counter from the server (D1, keyed by IP).
   function syncUsage() {
     fetch("/api/usage").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (!d || !d.ok || d.plan === "pro") return;
-      setUsage((p) => {
-        const next = d.plan === "anon"
-          ? { ...p, anon: d.count }                       // server counts by IP
-          : { ...p, month: d.month, count: d.count };     // server counts by account
-        localStorage.setItem("bc_usage", JSON.stringify(next)); return next;
-      });
+      if (!d || !d.ok || d.plan !== "anon") return;
+      setUsage(storeUsage({ day: d.day, anon: d.count }));
     }).catch(() => {});
   }
+  // Record an export done by the client-side renderer. Accounts are unlimited;
+  // the server still logs the export for stats.
   function bumpUsage() {
-    const plan = planOf(); const m = new Date().toISOString().slice(0, 7);
-    setUsage((p) => {
-      let next;
-      if (plan === "anon") next = { ...p, anon: (p.anon || 0) + 1 };
-      else next = { ...p, month: m, count: (p.month === m ? p.count : 0) + 1 };
-      localStorage.setItem("bc_usage", JSON.stringify(next)); return next;
-    });
-    {
-      // Record on the account (survives cache clears and other devices), then re-sync.
-      fetch("/api/usage", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).then((d) => {
-        if (!d || !d.ok || d.plan === "pro") return;
-        setUsage((p) => {
-          const next = { ...p, month: d.month, count: d.count };
-          localStorage.setItem("bc_usage", JSON.stringify(next)); return next;
-        });
-        if (d.plan === "anon") {
-          flash(d.remaining === 0 ? "Free export used — sign up for 5 a month" : `${d.remaining} free export left`);
-        } else if (d.remaining === 0) {
-          alert("That was your last free export this month. Your allowance resets next month — Pro (unlimited) is in private beta.");
-        } else {
-          flash(`Exported · ${d.remaining} of ${d.limit} left this month`);
-        }
-      }).catch(() => {});
+    if (!user) {
+      const day = utcDay();
+      setUsage((p) => storeUsage({ day, anon: (p.day === day ? p.anon || 0 : 0) + 1 }));
     }
+    fetch("/api/usage", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d || !d.ok || d.plan !== "anon") return;
+      setUsage(storeUsage({ day: d.day, anon: d.count }));
+      if (d.remaining === 0) flash("Today's free export used — sign up free for unlimited");
+    }).catch(() => {});
   }
   // Bundled, not fetched. Exporting used to depend on cdnjs.cloudflare.com being
   // reachable at the moment the user clicked Download — for anyone behind a
@@ -814,8 +800,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   }
   function gateExport() {
     if (remaining() > 0) return true;
-    if (planOf() === "anon") openAuth("Sign up free for 5 exports / month");
-    else openAuth("You've used your 5 free exports this month — your allowance resets next month");
+    openAuth("You've used today's free export — sign up free for unlimited exports");
     return false;
   }
   // Make one path segment safe without destroying non-Latin names. The old rule
@@ -871,7 +856,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
         // The server spends the export itself. When it says it already counted
         // one, the fallback below must not count a second.
         const j = await r.json().catch(() => ({}));
-        return { ok: false, counted: !!j.counted };
+        return { ok: false, counted: !!j.counted, quota: j.error === "quota" };
       }
       if (!(r.headers.get("content-type") || "").includes("application/pdf")) return { ok: false, counted: false };
       const blob = await r.blob();
@@ -893,6 +878,13 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     try {
       const s = await serverExport();
       serverCounted = !!s.counted;
+      if (s.quota) {
+        // The server says today's anonymous export is already used — don't
+        // route around that with the client renderer.
+        syncUsage();
+        openAuth("You've used today's free export — sign up free for unlimited exports");
+        return;
+      }
       if (s.ok) {
         if (user) doSaveInvoice();
         // The server already moved the counter; re-read it rather than adding
@@ -927,15 +919,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     }
     finally { document.body.classList.remove("exporting"); }
   }
-  // ---- share link + view tracking (Pro) ----
+  // ---- share link + view tracking (free with an account) ----
   async function doShare() {
     if (!user) return openAuth("Sign in to share invoices");
-    if (planOf() !== "pro") {
-      alert(PRO_BETA
-        ? "Share links with view tracking are a Pro feature. Pro is in private beta and not on sale yet."
-        : "Share links with view tracking are a Pro feature ($9.90/mo).");
-      return;
-    }
     setSharing(true);
     try {
       const snap = snapshot();
@@ -948,7 +934,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
         setShareUrl(d.url);
         try { await navigator.clipboard.writeText(d.url); flash("Link copied"); } catch { flash("Link created"); }
         if (user) doSaveInvoice();
-      } else if (r.status === 402) { alert("Share links are a Pro feature."); }
+      } else if (r.status === 401) { openAuth("Sign in to share invoices"); }
       else { alert("Couldn't create the link. Please try again."); }
     } catch { alert("Couldn't create the link. Please try again."); }
     finally { setSharing(false); }
@@ -1002,8 +988,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   }
   function doEmail() {
     if (!user) return openAuth("Sign in to email invoices");
-    if (!gateExport()) return; // emailing counts toward the monthly export allowance
-    setEmailTo("");
+        setEmailTo("");
     setEmailSubject(`${ty.word} ${f.invNo} from ${f.fromName || "BillCrafter"}`);
     setEmailMsg(`Hi,\n\nPlease find ${ty.word.toLowerCase()} ${f.invNo} attached.\n\nThank you,\n${f.fromName || ""}`);
     setEmailOpen(true);
@@ -1043,7 +1028,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                   aria-hidden because the status is already stated in the totals
                   ("Paid in full" / "Balance due"); the stamp is decoration over
                   the top of it, and reading it out twice helps nobody. */}
-              {stamp ? <div className={"stamp stamp-" + stamp} aria-hidden="true">{stampLabel(locale, stamp)}</div> : null}
+              {stamp && user ? <div className={"stamp stamp-" + stamp} aria-hidden="true">{stampLabel(locale, stamp)}</div> : null}
               <div className="inv-head">
                 <div className="brandblock">
                   {/* The remove control is a sibling of the label, not a child:
@@ -1336,7 +1321,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                   {/* Logged-in: full toolbox. PDF is the one export format — print covers paper. */}
                   <button className="btn btn-ghost btn-block" onClick={doEmail}>Email invoice</button>
                   <button className="btn btn-ghost btn-block" onClick={doSign}>Sign &amp; save</button>
-                  <button className="btn btn-ghost btn-block" onClick={doShare} disabled={sharing}>{sharing ? "Creating link…" : `Share link${planOf() !== "pro" ? " · Pro" : ""}`}</button>
+                  <button className="btn btn-ghost btn-block" onClick={doShare} disabled={sharing}>{sharing ? "Creating link…" : "Share link"}</button>
                   {shareUrl ? <div className="share-url" title={shareUrl}><a href={shareUrl} target="_blank" rel="noopener noreferrer">{shareUrl.replace(/^https?:\/\//, "")}</a></div> : null}
                   <button className="btn btn-ghost btn-block" onClick={doPrint}>Print</button>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -1348,11 +1333,11 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                 <>
                   {/* Anonymous: PDF + Print only. Share/stamps and the rest unlock at sign-up. */}
                   <button className="btn btn-ghost btn-block" onClick={doPrint}>Print</button>
-                  <button className="btn btn-line btn-block" onClick={() => openAuth("Create a free account — 5 exports a month, saved invoices, clients and more")}>Sign up free →</button>
+                  <button className="btn btn-line btn-block" onClick={() => openAuth("Create a free account — unlimited exports, status stamps, saved invoices, clients and more")}>Sign up free →</button>
                 </>
               )}
               <div className="saved">{savedMsg ? "● " + savedMsg : ""}</div>
-              <div className="quota-note">{remDisplay === Infinity ? "Pro · unlimited exports" : `Exports left: ${remDisplay} (${planOf() === "anon" ? "1 free — sign up for 5 / month" : "of 5 this month"})`}</div>
+              <div className="quota-note">{remDisplay === Infinity ? "Free account · unlimited exports" : `Free exports left today: ${remDisplay} of ${ANON_DAILY_LIMIT} — sign up free for unlimited`}</div>
             </div>
 
             {/* Review nudge — right under the download actions */}
@@ -1404,13 +1389,13 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
 
             {user && (
             <div className="sp-group">
-              <div className="sp-h">Stamp{planOf() !== "pro" ? " · Pro" : ""}</div>
+              <div className="sp-h">Stamp</div>
               <div className="tpl-select" style={{ flexWrap: "wrap", gap: 6 }}>
                 <button className={"tpl-btn" + (stamp === "" ? " active" : "")} onClick={() => setStamp("")}>None</button>
                 {STAMP_KEYS.map((k) => (
                   <button key={k} className={"tpl-btn" + (stamp === k ? " active" : "")}
                     onClick={() => {
-                      if (planOf() !== "pro") { alert(PRO_BETA ? "Nice choice! Status stamps like PAID and OVERDUE are part of Pro, which is still in private beta — it isn't open to join just yet. Everything else stays free to use in the meantime, and we'll let members in soon." : "Status stamps like PAID and OVERDUE are a Pro feature ($9.90/mo). Everything else stays free — upgrade whenever you're ready."); return; }
+                      if (!user) { openAuth("Sign up free to add PAID / UNPAID stamps"); return; }
                       setStamp(k);
                     }}>{stampLabel(locale, k)}</button>
                 ))}
@@ -1454,7 +1439,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       {/* EMAIL MODAL */}
       <div className={"modal" + (emailOpen ? " show" : "")}>
         <button className="x" onClick={() => setEmailOpen(false)}>×</button>
-        <h2>Email this {ty.word.toLowerCase()}</h2>
+        <div className="modal-title">Email this {ty.word.toLowerCase()}</div>
         <p className="sub">Sends a PDF attachment to your client. Replies come back to {user?.email || "you"}.</p>
         <label style={{ fontSize: 12, color: "var(--muted)" }}>To</label>
         <input className="sp-input" type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="client@email.com" style={{ margin: "4px 0 10px" }} />
@@ -1466,12 +1451,12 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       </div>
       <div className={"modal" + (authOpen ? " show" : "")}>
         <button className="x" onClick={() => setAuthOpen(false)}>×</button>
-        <h2>{authTitle}</h2>
+        <div className="modal-title">{authTitle || `Save your ${ty.word.toLowerCase()} — for free`}</div>
         <p className="sub">Create a free account (or log in) to keep billing without starting over.</p>
         <div className="benefit">✓ <span>Reuse your business details &amp; client list</span></div>
         <div className="benefit">✓ <span>History — duplicate past invoices in one click</span></div>
         <div className="benefit">✓ <span>E-signature — sign an invoice and send the signed PDF</span></div>
-        <div className="benefit">✓ <span>5 free exports / month — Pro $9.90 for unlimited</span></div>
+        <div className="benefit">✓ <span>Unlimited PDF exports &amp; status stamps — free, no paid plans</span></div>
         <div style={{ height: 14 }} />
         <input className="sp-input" type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="you@email.com" />
         <input className="sp-input" type="password" value={authPass} onChange={(e) => setAuthPass(e.target.value)} placeholder="Password (6+ characters)" style={{ marginTop: 8 }} onKeyDown={(e) => { if (e.key === "Enter") signInPassword(); }} />
@@ -1488,7 +1473,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       <div className={"modal" + (thanksOpen ? " show" : "")}>
         <button className="x" onClick={() => setThanksOpen(false)}>×</button>
         <div className="thanks-emoji">✅</div>
-        <h2>Your {ty.word.toLowerCase()} is downloading</h2>
+        <div className="modal-title">Your {ty.word.toLowerCase()} is downloading</div>
         <p className="sub">Check your downloads folder for <strong>{fileBase()}.pdf</strong>. Thanks for using BillCrafter!</p>
         <div className="benefit">✓ <span>Enjoying the free invoice generator? A 30-second review means a lot.</span></div>
         <div className="thanks-review">
@@ -1517,9 +1502,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       {/* HISTORY DRAWER */}
       <div className={"drawer" + (drawerOpen ? " show" : "")}>
         <button className="x" onClick={() => setDrawerOpen(false)}>×</button>
-        <h2>My invoices</h2>
+        <div className="modal-title">My invoices</div>
         <div style={{ color: "var(--muted)", fontSize: 12.5, marginBottom: 8 }}>
-          {user ? <>Signed in as <strong>{user.email}</strong> · {user.plan === "pro" ? "Pro" : "Free"} · <button className="link-text" onClick={signOut}>sign out</button></> : "Not signed in"}
+          {user ? <>Signed in as <strong>{user.email}</strong> · Free account · <button className="link-text" onClick={signOut}>sign out</button></> : "Not signed in"}
         </div>
         <div>
           {history.length === 0 ? (

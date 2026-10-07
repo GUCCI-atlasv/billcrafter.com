@@ -44,18 +44,20 @@ export async function generateMetadata({ params }) {
 
   const v = getVertical(slug);
   if (!v) return {};
+  // `title` is an optional, longer <title> for search; the H1 stays readable.
+  const title = v.title || v.h1;
   return {
-    title: v.h1,
+    title,
     description: v.sub,
     // SEO landing pages only exist in English. Declaring locale-prefixed
     // alternates here sends crawlers to URLs that permanently redirect back.
     alternates: { canonical: `/${v.slug}` },
     openGraph: {
-      title: v.h1, description: v.sub, type: "website",
+      title, description: v.sub, type: "website",
       images: [{ url: `/og/${v.slug}.png`, width: 1200, height: 630, alt: `${v.h1} — BillCrafter` }],
     },
     twitter: {
-      card: "summary_large_image", title: v.h1, description: v.sub,
+      card: "summary_large_image", title, description: v.sub,
       images: [`/og/${v.slug}.png`],
     },
   };
@@ -86,8 +88,8 @@ export default async function SlugPage({ params }) {
               <InvoiceEditor initialType="invoice" initialScenario="blank" locale={slug} />
             </div>
           </section>
-          {/* full (not slim): the localized nav links to #pricing and #faq, so those
-              sections have to exist on the locale home too. */}
+          {/* full (not slim): the localized nav links to #faq, so that
+              section has to exist on the locale home too. */}
           <MarketingSections variant="full" locale={slug} />
         </main>
         <SiteFooter locale={slug} />

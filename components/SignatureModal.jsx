@@ -86,7 +86,7 @@ export default function SignatureModal({ open, onClose, defaultName = "", defaul
       <div className={"overlay" + (open ? " show" : "")} onClick={onClose} />
       <div className={"modal" + (open ? " show" : "")}>
         <button className="x" onClick={onClose}>×</button>
-        <h2>Sign this {(docType || "invoice").toLowerCase()}</h2>
+        <div className="modal-title">Sign this {(docType || "invoice").toLowerCase()}</div>
         <p className="sub">Draw your signature below. It’s embedded into the PDF and stored with a signing record.</p>
 
         <label className="sig-label">Full legal name</label>

@@ -49,9 +49,10 @@ export default function SiteFooter({ locale = DEFAULT_LOCALE }) {
             <Link href="/quote-generator">{foot.quoteGen}</Link>
             <Link href="/estimate-generator">{foot.estimateGen}</Link>
             <Link href="/receipt-maker">{foot.receiptMaker}</Link>
+            {/* English-only guide, so an English label like INDUSTRIES below. Sitewide
+                anchor for "bill generator" — those queries were landing on / instead. */}
+            <Link href="/bill-generator">Bill generator</Link>
             <Link href="/templates">{foot.allTemplates}</Link>
-            <Link href="/#pricing">{foot.pricing}</Link>
-            <Link href="/upgrade">{foot.upgrade}</Link>
           </div>
           <div className="foot-col">
             <div className="foot-h">{foot.templates}</div>

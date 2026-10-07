@@ -12,6 +12,9 @@ const nextConfig = {
       // /vn (country), matching how we talk about the market (VN).
       { source: "/vi", destination: "/vn", permanent: true },
       { source: "/vi/:path*", destination: "/vn/:path*", permanent: true },
+      // Paid plans were retired (Sep 2026) — everything is free with an account.
+      { source: "/upgrade", destination: "/signup", permanent: true },
+      { source: "/:locale/upgrade", destination: "/signup", permanent: true },
     ];
   },
 };

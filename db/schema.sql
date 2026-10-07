@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   email         TEXT UNIQUE NOT NULL,
   password_hash TEXT,                             -- pbkdf2 (argon2/bcrypt also fine); null for OAuth-only
-  plan          TEXT NOT NULL DEFAULT 'free',     -- 'free' | 'pro'
+  plan          TEXT NOT NULL DEFAULT 'free',     -- always 'free' (no paid plans since Sep 2026)
   comp          INTEGER NOT NULL DEFAULT 0,        -- 1 = complimentary/test Pro (entitled, but not a paying subscriber)
   locale        TEXT DEFAULT 'en',
   created_at    INTEGER NOT NULL
@@ -165,7 +165,16 @@ CREATE TABLE IF NOT EXISTS analytics_log (
 CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_analytics_template ON analytics_log(template);
 
--- Anonymous export quota by IP (rolling monthly)
+-- Anonymous export allowance by IP: 1 per UTC day (free model, db/0016_free_model.sql)
+CREATE TABLE IF NOT EXISTS anon_daily_usage (
+  ip          TEXT NOT NULL,
+  day         TEXT NOT NULL,
+  count       INTEGER NOT NULL DEFAULT 0,
+  updated_at  INTEGER NOT NULL,
+  PRIMARY KEY (ip, day)
+);
+
+-- Legacy: anonymous export quota by IP (rolling monthly) — no longer read
 CREATE TABLE IF NOT EXISTS anon_usage (
   ip          TEXT NOT NULL,
   month       TEXT NOT NULL,
@@ -174,7 +183,7 @@ CREATE TABLE IF NOT EXISTS anon_usage (
   PRIMARY KEY (ip, month)
 );
 
--- Share links + view tracking (Pro)
+-- Share links + view tracking
 CREATE TABLE IF NOT EXISTS share_links (
   token TEXT PRIMARY KEY, user_id TEXT NOT NULL, user_email TEXT,
   doc_json TEXT NOT NULL, title TEXT, locale TEXT DEFAULT 'en',

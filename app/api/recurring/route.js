@@ -1,4 +1,4 @@
-// Recurring invoice schedules (Pro). List / create / update / delete.
+// Recurring invoice schedules (free for any signed-in user). List / create / update / delete.
 import { getEnv, getSessionUser } from "@/lib/server/auth";
 import { FREQS, nextRun } from "@/lib/server/recurring";
 
@@ -27,7 +27,6 @@ export async function POST(request) {
   const env = await getEnv();
   const { user, err } = await requireUser(request, env);
   if (err) return err;
-  if (user.plan !== "pro") return Response.json({ ok: false, error: "pro_only" }, { status: 402 });
 
   const { doc, toEmail, freq, startDate, title, locale } = await request.json().catch(() => ({}));
   if (!doc || typeof doc !== "object") return Response.json({ ok: false, error: "invalid_doc" }, { status: 400 });

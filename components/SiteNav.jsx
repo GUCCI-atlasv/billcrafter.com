@@ -19,7 +19,6 @@ export default function SiteNav({ locale = DEFAULT_LOCALE }) {
               which would 404 since only the home page is localized). */}
           <Link href="/templates">{L("nav.templates")}</Link>
           <Link href={p("/#features")}>{nav.features}</Link>
-          <Link href={p("/#pricing")}>{L("nav.pricing")}</Link>
           <Link href={p("/#faq")}>{nav.guide}</Link>
           <Link href={p("/about")}>{nav.about}</Link>
         </nav>

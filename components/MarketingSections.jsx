@@ -1,8 +1,6 @@
 import Link from "next/link";
-import Pricing from "./Pricing";
 import VideoSection from "./VideoSection";
 import JsonLd, { faqSchema, howToSchema } from "./JsonLd";
-import { PRO_BETA } from "@/lib/billing";
 import { localePath, DEFAULT_LOCALE } from "@/lib/i18n";
 import { mktg } from "@/lib/marketingI18n";
 
@@ -117,17 +115,6 @@ export default function MarketingSections({ intro, variant = "full", locale = DE
           in motion, so they reinforce rather than repeat. */}
       {full && <VideoSection locale={locale} />}
 
-      {full && (<section className="band" id="pricing">
-        <div className="wrap">
-          <div className="eyebrow">{M.pr.eyebrow}</div>
-          <h2>{M.pr.h2}</h2>
-          <p className="lead">
-            {M.pr.lead}
-            {PRO_BETA ? <> <strong style={{ color: "var(--ink)" }}>{M.pr.betaStrong}</strong> {M.pr.betaRest}</> : null}
-          </p>
-          <Pricing locale={locale} />
-        </div>
-      </section>)}
 
       {full && (<section className="band alt" id="faq">
         <div className="wrap">

@@ -1,4 +1,4 @@
-// Shareable invoice links (Pro). POST creates a link; GET lists the user's links
+// Shareable invoice links (free for any signed-in user). POST creates a link; GET lists the user's links
 // with their view counts.
 import { getEnv, getSessionUser } from "@/lib/server/auth";
 
@@ -12,7 +12,6 @@ export async function POST(request) {
   if (!env?.DB || !env?.SESSIONS) return Response.json({ ok: false, error: "backend_unavailable" }, { status: 503 });
   const user = await getSessionUser(request, env);
   if (!user) return Response.json({ ok: false, error: "unauth" }, { status: 401 });
-  if (user.plan !== "pro") return Response.json({ ok: false, error: "pro_only" }, { status: 402 });
 
   const { doc, title, locale } = await request.json().catch(() => ({}));
   if (!doc || typeof doc !== "object") return Response.json({ ok: false, error: "invalid" }, { status: 400 });

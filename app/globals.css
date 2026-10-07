@@ -649,7 +649,11 @@ details.faq p{font-size:14px;color:var(--muted);margin:10px 0 0;line-height:1.7}
 .overlay.show{display:block}
 .modal{position:fixed;z-index:60;left:50%;top:50%;transform:translate(-50%,-50%);width:min(420px,92vw);background:var(--card);border:1px solid var(--line-2);border-radius:16px;box-shadow:0 24px 60px rgba(45,47,51,.22);padding:28px;display:none}
 .modal.show{display:block}
-.modal h2{font-size:21px;margin-bottom:6px}
+/* Modal and drawer titles are styled divs, not <h2>: they're server-rendered
+   (hidden) on every landing page, and as headings they put "Email this invoice" /
+   "My invoices" into each page's outline ahead of the real content. */
+.modal-title{margin:0;font-weight:600;letter-spacing:-.02em}
+.modal .modal-title{font-size:21px;margin-bottom:6px}
 .modal p.sub{color:var(--muted);font-size:13px;margin:0 0 18px}
 .modal .btn{width:100%;margin-bottom:10px;padding:11px}
 .modal .sp-input{margin-bottom:10px}
@@ -660,7 +664,7 @@ details.faq p{font-size:14px;color:var(--muted);margin:10px 0 0;line-height:1.7}
 .fineprint{font-size:11px;color:var(--faint);text-align:center;margin-top:6px}
 .drawer{position:fixed;z-index:60;top:0;right:0;height:100vh;width:min(420px,94vw);background:var(--card);border-left:1px solid var(--line-2);box-shadow:-16px 0 50px rgba(45,47,51,.16);transform:translateX(100%);transition:.25s cubic-bezier(.2,.6,.2,1);padding:22px;overflow:auto}
 .drawer.show{transform:translateX(0)}
-.drawer h2{font-size:18px;margin-bottom:4px}
+.drawer .modal-title{font-size:18px;margin-bottom:4px}
 .drawer .x{position:absolute;top:14px;right:16px;border:none;background:none;font-size:20px;color:var(--faint);cursor:pointer}
 .hist-item{border:1px solid var(--line);border-radius:12px;padding:13px;margin-top:10px;background:var(--elev)}
 .hist-item .top{display:flex;justify-content:space-between;align-items:center}

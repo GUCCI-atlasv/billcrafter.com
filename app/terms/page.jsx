@@ -12,7 +12,7 @@ export const metadata = {
 // which the read-only static-assets cache can't persist — see open-next.config.)
 export const dynamic = "force-static";
 
-const UPDATED = "July 15, 2026";
+const UPDATED = "September 15, 2026";
 
 export default function Terms() {
   return (
@@ -25,11 +25,11 @@ export default function Terms() {
           <p className="lead">These Terms of Service (“Terms”) govern your access to and use of billcrafter.com and the BillCrafter invoice tools (the “Service”), operated by <strong>CCC STUDIO</strong> (“we”, “us”). By using the Service, you agree to these Terms.</p>
 
           <div className="toc">
-            <a href="#service">1. The service</a><a href="#accounts">2. Accounts</a><a href="#use">3. Acceptable use</a><a href="#content">4. Your content</a><a href="#email">5. Emailing invoices</a><a href="#plans">6. Plans &amp; billing</a><a href="#advice">7. No professional advice</a><a href="#ip">8. Intellectual property</a><a href="#disclaimer">9. Disclaimers</a><a href="#liability">10. Liability</a><a href="#termination">11. Termination</a><a href="#law">12. Governing law</a><a href="#changes">13. Changes</a><a href="#contact">14. Contact</a>
+            <a href="#service">1. The service</a><a href="#accounts">2. Accounts</a><a href="#use">3. Acceptable use</a><a href="#content">4. Your content</a><a href="#email">5. Emailing invoices</a><a href="#plans">6. Price &amp; limits</a><a href="#advice">7. No professional advice</a><a href="#ip">8. Intellectual property</a><a href="#disclaimer">9. Disclaimers</a><a href="#liability">10. Liability</a><a href="#termination">11. Termination</a><a href="#law">12. Governing law</a><a href="#changes">13. Changes</a><a href="#contact">14. Contact</a>
           </div>
 
           <h2 id="service">1. The Service</h2>
-          <p>BillCrafter lets you create invoices, estimates, quotes, and receipts; export them as PDF; and email a PDF to your clients. Editing and previewing are free. Exports and emailed invoices are subject to limits: <strong>anonymous visitors get 1 export per month</strong> (counted by IP address), <strong>free accounts get 5 exports per month</strong>, and <strong>Pro subscribers get unlimited exports</strong>. Emailing an invoice counts toward your monthly export allowance. We may change features over time.</p>
+          <p>BillCrafter lets you create invoices, estimates, quotes, and receipts; export them as PDF; and email a PDF to your clients. The Service is free — there are no paid plans. <strong>Visitors without an account can export 1 PDF per day</strong> (counted by IP address) and cannot add status stamps; <strong>registered accounts can export and email without limit</strong> and use every feature. We may apply reasonable technical limits to prevent abuse, and we may change features over time.</p>
 
           <h2 id="accounts">2. Accounts</h2>
           <ul>
@@ -57,12 +57,12 @@ export default function Terms() {
             <li>We may log metadata about sends (such as sender account, recipient address, subject, and delivery status) so we can operate, support, and secure the Service. See our <a href="/privacy">Privacy Policy</a>.</li>
           </ul>
 
-          <h2 id="plans">6. Plans &amp; billing</h2>
+          <h2 id="plans">6. Price &amp; limits</h2>
           <ul>
-            <li><strong>Free.</strong> The free plan is provided at no charge, subject to the export limits above.</li>
-            <li><strong>Pro — $9.90 / month.</strong> Pro unlocks unlimited exports and additional features. Subscriptions are billed in advance through PayPal and <strong>renew automatically</strong> until canceled.</li>
-            <li><strong>Cancellation.</strong> You can cancel anytime; access continues until the end of the current billing period. Except where required by law, payments are non-refundable.</li>
-            <li><strong>Changes.</strong> We may change prices or plans with prior notice; changes apply to the next billing cycle. Prices are exclusive of taxes unless stated.</li>
+            <li><strong>Free.</strong> BillCrafter is provided at no charge. We do not sell subscriptions and never ask for payment details.</li>
+            <li><strong>Without an account.</strong> 1 PDF export per day per IP address; status stamps (PAID, UNPAID and similar) require an account.</li>
+            <li><strong>With a free account.</strong> Unlimited exports, emailed invoices, share links, recurring invoices, status stamps and e-signature.</li>
+            <li><strong>Changes.</strong> If we ever introduce paid features, we will give prior notice and will not charge you without your explicit agreement.</li>
           </ul>
 
           <h2 id="advice">7. No professional advice</h2>
