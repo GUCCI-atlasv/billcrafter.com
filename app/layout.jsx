@@ -1,5 +1,6 @@
 import "./globals.css";
 import Script from "next/script";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 import { Montserrat } from "next/font/google";
 import JsonLd from "@/components/JsonLd";
 import { SITE_PUBLISHED, SITE_UPDATED } from "@/lib/site";
@@ -113,6 +114,7 @@ export default function RootLayout({ children }) {
       <body>
         <JsonLd data={SITE_SCHEMA} />
         {children}
+        <GoogleAnalytics />
         <Script
           src="https://ccc-monitor.583079497.workers.dev/beacon.js"
           data-site="billcrafter.com"

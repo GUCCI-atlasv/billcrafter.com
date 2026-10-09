@@ -12,7 +12,7 @@ export const metadata = {
 // which the read-only static-assets cache can't persist — see open-next.config.)
 export const dynamic = "force-static";
 
-const UPDATED = "September 15, 2026";
+const UPDATED = "October 9, 2026";
 
 export default function Privacy() {
   return (
@@ -68,11 +68,12 @@ export default function Privacy() {
           <ul>
             <li><strong>Cloudflare</strong> — hosting, database (D1), and sessions (KV).</li>
             <li><strong>Resend</strong> — transactional and invoice email delivery.</li>
+            <li><strong>Google Analytics</strong> — measuring how visitors find and use our public pages (pages viewed, approximate location, device and browser). It is not loaded on invoice share links or on the page that renders your PDF, and it never receives your invoice content.</li>
           </ul>
           <p>We may also disclose information to comply with the law, enforce our Terms, or in connection with a merger or acquisition (with notice where required). We do not sell personal data.</p>
 
           <h2 id="cookies">6. Cookies</h2>
-          <p>We use a strictly necessary, secure session cookie to keep you signed in. We keep any analytics minimal and privacy-respecting. You can control cookies in your browser; disabling the session cookie will sign you out.</p>
+          <p>We use a strictly necessary, secure session cookie to keep you signed in. We also use Google Analytics, which sets its own cookies (such as <code>_ga</code>) to count visits and understand how the Service is used. You can block these with your browser settings or Google’s <a href="https://tools.google.com/dlpage/gaoptout" target="_blank" rel="noopener nofollow">opt-out add-on</a> without affecting the Service. Disabling the session cookie will sign you out.</p>
 
           <h2 id="retention">7. Data retention &amp; deletion</h2>
           <p>We keep your account and content while your account is active. You can delete individual clients, items, profiles, and documents at any time, and you can delete your entire account, which removes your associated data (subject to limited retention for legal, security, or backup purposes). Email send logs may be retained for a reasonable period for security and abuse prevention.</p>
