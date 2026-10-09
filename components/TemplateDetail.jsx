@@ -27,6 +27,10 @@ export default function TemplateDetail({ t }) {
           See all <Link href={`/templates/c/${catSlug(t.group)}`} style={{ color: "var(--brand-ink)", textDecoration: "underline" }}>{t.group} templates</Link>, or{" "}
           <Link href="/templates" style={{ color: "var(--brand-ink)", textDecoration: "underline" }}>browse all {TEMPLATES.length} templates</Link>.
         </p>
+        <p className="muted" style={{ fontSize: 13.5, marginTop: 8 }}>
+          The sample business, prices, tax rate, payment terms and any late fee are placeholders. Replace them with
+          what you agreed with your client — tax and late-fee rules vary by country and state.
+        </p>
       </div>
     </section>
   );

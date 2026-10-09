@@ -7,9 +7,10 @@ import { useEffect, useRef, useState } from "react";
 // Matches CONSENT_TEXT in app/api/sign/route.js. Shown here and stored verbatim
 // with the signature, so the record always reflects what was actually agreed to.
 const CONSENT_TEXT =
-  "I agree to sign this document electronically. I understand my electronic signature " +
-  "is legally binding and equivalent to a handwritten signature, and that a record of " +
-  "this signature — including the time, my IP address and this consent — will be kept.";
+  "I agree to sign this document electronically and intend this signature to have the " +
+  "same effect as my handwritten signature, to the extent the law that applies to this " +
+  "document allows. I understand that a record of this signature — including the time, " +
+  "my IP address and this consent — will be kept.";
 
 export default function SignatureModal({ open, onClose, defaultName = "", defaultRecipient = "", docType, onSubmit, onSigned }) {
   const canvasRef = useRef(null);

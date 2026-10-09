@@ -21,9 +21,10 @@ const MAX_SIG = 2 * 1024 * 1024;
 // Wording the signer accepts. Stored verbatim with each signature so we can always
 // show what was actually agreed to, even if this text changes later.
 export const CONSENT_TEXT =
-  "I agree to sign this document electronically. I understand my electronic signature " +
-  "is legally binding and equivalent to a handwritten signature, and that a record of " +
-  "this signature — including the time, my IP address and this consent — will be kept.";
+  "I agree to sign this document electronically and intend this signature to have the " +
+  "same effect as my handwritten signature, to the extent the law that applies to this " +
+  "document allows. I understand that a record of this signature — including the time, " +
+  "my IP address and this consent — will be kept.";
 
 function b64ToBytes(b64) {
   const bin = atob(String(b64).replace(/^data:[^,]+,/, ""));

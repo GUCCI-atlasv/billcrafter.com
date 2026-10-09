@@ -1046,23 +1046,23 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                         title="Remove logo" aria-label="Remove logo">×</button>
                     ) : null}
                   </div>
-                  <input className="se biz" value={f.fromName} onChange={(e) => setField("fromName", e.target.value)} placeholder="Your business name" />
+                  <input className="se biz" aria-label="Your business name" value={f.fromName} onChange={(e) => setField("fromName", e.target.value)} placeholder="Your business name" />
                   <textarea className="se dets print-hide" rows={2} value={f.fromDetails} onChange={(e) => setField("fromDetails", e.target.value)} placeholder="Address, email, phone, Tax ID (optional)" />
                   <div className="se dets se-print print-only">{f.fromDetails}</div>
                 </div>
                 <div className="inv-meta">
                   <div className="inv-word">{ty.word}</div>
-                  <div className="metarow"><span>#</span><input className="se print-hide" value={f.invNo} onChange={(e) => setField("invNo", e.target.value)} /><span className="metaval print-only">{f.invNo}</span></div>
-                  <div className="metarow"><span>{L("doc.issued")}</span><input className="se print-hide" type="date" value={f.issueDate} onChange={(e) => setField("issueDate", e.target.value)} /><span className="metaval print-only">{fmtDMY(f.issueDate)}</span></div>
-                  <div className="metarow"><span>{ty.d2}</span><input className="se print-hide" type="date" value={f.dueDate} onChange={(e) => setField("dueDate", e.target.value)} /><span className="metaval print-only">{fmtDMY(f.dueDate)}</span></div>
-                  <div className={"metarow hide-empty-print" + (f.poNo ? "" : " is-empty")}><span>PO</span><input className="se print-hide" value={f.poNo} onChange={(e) => setField("poNo", e.target.value)} placeholder="optional" />{f.poNo ? <span className="metaval print-only">{f.poNo}</span> : null}</div>
-                  {ty.method && <div className={"metarow hide-empty-print" + (f.payMethod ? "" : " is-empty")}><span>Method</span><input className="se print-hide" value={f.payMethod} onChange={(e) => setField("payMethod", e.target.value)} placeholder="Card / Cash / Transfer" />{f.payMethod ? <span className="metaval print-only">{f.payMethod}</span> : null}</div>}
+                  <div className="metarow"><span>#</span><input className="se print-hide" aria-label="Document number" value={f.invNo} onChange={(e) => setField("invNo", e.target.value)} /><span className="metaval print-only">{f.invNo}</span></div>
+                  <div className="metarow"><span>{L("doc.issued")}</span><input className="se print-hide" type="date" aria-label="Issue date" value={f.issueDate} onChange={(e) => setField("issueDate", e.target.value)} /><span className="metaval print-only">{fmtDMY(f.issueDate)}</span></div>
+                  <div className="metarow"><span>{ty.d2}</span><input className="se print-hide" type="date" aria-label={ty.d2} value={f.dueDate} onChange={(e) => setField("dueDate", e.target.value)} /><span className="metaval print-only">{fmtDMY(f.dueDate)}</span></div>
+                  <div className={"metarow hide-empty-print" + (f.poNo ? "" : " is-empty")}><span>PO</span><input className="se print-hide" aria-label="PO number" value={f.poNo} onChange={(e) => setField("poNo", e.target.value)} placeholder="optional" />{f.poNo ? <span className="metaval print-only">{f.poNo}</span> : null}</div>
+                  {ty.method && <div className={"metarow hide-empty-print" + (f.payMethod ? "" : " is-empty")}><span>Method</span><input className="se print-hide" aria-label="Payment method" value={f.payMethod} onChange={(e) => setField("payMethod", e.target.value)} placeholder="Card / Cash / Transfer" />{f.payMethod ? <span className="metaval print-only">{f.payMethod}</span> : null}</div>}
                 </div>
               </div>
 
               <div className="billto">
                 <div className="tag">{ty.party}</div>
-                <input className="se cli" value={f.toName} onChange={(e) => setField("toName", e.target.value)} placeholder="Client / company name" />
+                <input className="se cli" aria-label="Client or company name" value={f.toName} onChange={(e) => setField("toName", e.target.value)} placeholder="Client / company name" />
                 <textarea className="se dets print-hide" rows={2} value={f.toDetails} onChange={(e) => setField("toDetails", e.target.value)} placeholder="Client address, email (optional)" />
                 <div className="se dets se-print print-only">{f.toDetails}</div>
               </div>
@@ -1082,9 +1082,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                 <div className="svc-period">
                   <div className="tag">{L("doc.servicePeriod")}</div>
                   <div className="svc-row">
-                    <input className="se svc-date print-hide" type="date" value={f.svcFrom} onChange={(e) => setField("svcFrom", e.target.value)} />
+                    <input className="se svc-date print-hide" type="date" aria-label="Service period start" value={f.svcFrom} onChange={(e) => setField("svcFrom", e.target.value)} />
                     <span className="svc-dash">–</span>
-                    <input className="se svc-date print-hide" type="date" value={f.svcTo} onChange={(e) => setField("svcTo", e.target.value)} />
+                    <input className="se svc-date print-hide" type="date" aria-label="Service period end" value={f.svcTo} onChange={(e) => setField("svcTo", e.target.value)} />
                     <span className="se-print print-only svc-range">{[fmtDMY(f.svcFrom), fmtDMY(f.svcTo)].filter(Boolean).join(" – ")}</span>
                     <span className={"svc-freq-wrap hide-empty-print" + (f.svcFreq ? "" : " is-empty")}>
                       <span className="svc-lb">{L("doc.frequency")}</span>
@@ -1126,7 +1126,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                     <tr key={i}>
                       {hasDates ? (
                         <td className="col-date">
-                          <input className="se print-hide" type="date" value={it.date || ""} onChange={(e) => updItem(i, "date", e.target.value)} />
+                          <input className="se print-hide" type="date" aria-label={`Line ${i + 1} date`} value={it.date || ""} onChange={(e) => updItem(i, "date", e.target.value)} />
                           <span className="se se-print print-only">{fmtDMY(it.date)}</span>
                         </td>
                       ) : null}
@@ -1142,9 +1142,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                         <div className="se se-print print-only">{it.desc}</div>
                         {it.detail ? <div className="se it-detail se-print print-only">{it.detail}</div> : null}
                       </td>
-                      <td className="num"><input className="se" type="number" min="0" step="any" value={it.qty} onChange={(e) => updItem(i, "qty", e.target.value)} /></td>
-                      <td className="num"><input className="se" type="number" min="0" step="any" value={it.rate} onChange={(e) => updItem(i, "rate", e.target.value)} /></td>
-                      <td className="col-tax" style={{ textAlign: "center" }}><input type="checkbox" checked={it.tax} onChange={(e) => updItem(i, "tax", e.target.checked)} title="Taxable" /></td>
+                      <td className="num"><input className="se" type="number" min="0" step="any" aria-label={`Line ${i + 1} quantity`} value={it.qty} onChange={(e) => updItem(i, "qty", e.target.value)} /></td>
+                      <td className="num"><input className="se" type="number" min="0" step="any" aria-label={`Line ${i + 1} rate`} value={it.rate} onChange={(e) => updItem(i, "rate", e.target.value)} /></td>
+                      <td className="col-tax" style={{ textAlign: "center" }}><input type="checkbox" checked={it.tax} onChange={(e) => updItem(i, "tax", e.target.checked)} title="Taxable" aria-label={`Line ${i + 1} taxable`} /></td>
                       <td className="amount-cell">{fmt(roundMoney((it.qty || 0) * (it.rate || 0), dec))}</td>
                       <td className="col-act"><button className="del-row" onClick={() => delItem(i)} title="Remove">×</button></td>
                     </tr>
@@ -1247,7 +1247,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                             <span className="se-print print-only">{fmtDMY(row.due)}</span>
                           </td>
                           <td className="ps-amt num">
-                            <input className="se print-hide" type="number" min="0" step="0.01" value={row.amount} onChange={(e) => updSchedule(i, "amount", e.target.value)} placeholder="0.00" />
+                            <input className="se print-hide" type="number" min="0" step="0.01" aria-label={`Payment ${i + 1} amount`} value={row.amount} onChange={(e) => updSchedule(i, "amount", e.target.value)} placeholder="0.00" />
                             <span className="se-print print-only">{fmt(Number(row.amount) || 0)}</span>
                           </td>
                           <td className="col-act"><button className="del-row print-hide" onClick={() => delSchedule(i)} title="Remove">×</button></td>
@@ -1417,17 +1417,17 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
             </div>
 
             <div className="sp-group"><div className="sp-h">Tax &amp; adjustments <span style={{ textTransform: "none", letterSpacing: 0, color: "var(--faint)" }}>(optional)</span></div>
-              <div className="sp-row"><label>Tax %</label><input className="sp-input" type="number" min="0" step="0.01" value={adj.taxRate} onChange={(e) => setAdj((p) => ({ ...p, taxRate: e.target.value }))} /></div>
+              <div className="sp-row"><label>Tax %</label><input className="sp-input" aria-label="Tax rate (%)" type="number" min="0" step="0.01" value={adj.taxRate} onChange={(e) => setAdj((p) => ({ ...p, taxRate: e.target.value }))} /></div>
               <div className="sp-row"><label>Discount</label>
-                <input className="sp-input" type="number" min="0" step="0.01" value={adj.discVal} onChange={(e) => setAdj((p) => ({ ...p, discVal: e.target.value }))} />
+                <input className="sp-input" aria-label="Discount" type="number" min="0" step="0.01" value={adj.discVal} onChange={(e) => setAdj((p) => ({ ...p, discVal: e.target.value }))} />
                 <select style={{ width: 78 }} value={adj.discType} onChange={(e) => setAdj((p) => ({ ...p, discType: e.target.value }))}><option value="pct">%</option><option value="flat">flat</option></select>
               </div>
-              <div className="sp-row"><label>Shipping</label><input className="sp-input" type="number" min="0" step="0.01" value={adj.shipping} onChange={(e) => setAdj((p) => ({ ...p, shipping: e.target.value }))} /></div>
+              <div className="sp-row"><label>Shipping</label><input className="sp-input" aria-label="Shipping" type="number" min="0" step="0.01" value={adj.shipping} onChange={(e) => setAdj((p) => ({ ...p, shipping: e.target.value }))} /></div>
               <div className="sp-row"><label>Deposit</label>
-                <input className="sp-input" type="number" min="0" step="0.01" value={adj.depositVal} onChange={(e) => setAdj((p) => ({ ...p, depositVal: e.target.value }))} title="Deposit requested up front — printed as “Deposit due”, doesn’t change the total" />
+                <input className="sp-input" aria-label="Deposit requested" type="number" min="0" step="0.01" value={adj.depositVal} onChange={(e) => setAdj((p) => ({ ...p, depositVal: e.target.value }))} title="Deposit requested up front — printed as “Deposit due”, doesn’t change the total" />
                 <select style={{ width: 78 }} value={adj.depositType} onChange={(e) => setAdj((p) => ({ ...p, depositType: e.target.value }))}><option value="pct">%</option><option value="flat">flat</option></select>
               </div>
-              <div className="sp-row"><label>Paid</label><input className="sp-input" type="number" min="0" step="0.01" value={adj.paid} onChange={(e) => setAdj((p) => ({ ...p, paid: e.target.value }))} /></div>
+              <div className="sp-row"><label>Paid</label><input className="sp-input" aria-label="Amount paid" type="number" min="0" step="0.01" value={adj.paid} onChange={(e) => setAdj((p) => ({ ...p, paid: e.target.value }))} /></div>
             </div>
           </aside>
         </div>
