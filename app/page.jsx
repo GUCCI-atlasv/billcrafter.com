@@ -2,7 +2,7 @@ import SiteNav from "@/components/SiteNav";
 import SiteFooter from "@/components/SiteFooter";
 import InvoiceEditor from "@/components/InvoiceEditor";
 import MarketingSections from "@/components/MarketingSections";
-import AskAi from "@/components/AskAi";
+import HeroCta from "@/components/HeroCta";
 import { homeAlternates, DEFAULT_LOCALE } from "@/lib/i18n";
 
 // Each declared alternate is an indexable, self-canonical home page. English
@@ -21,9 +21,11 @@ export default function Home() {
               <h1>Free Invoice Generator for Freelancers &amp; Small Businesses</h1>
               <p className="sub">The invoice tool built for speed. Edit directly on the invoice — what you type is what you get. Create invoices, estimates, quotes and receipts, then download a clean PDF. No signup to download, keyboard-fast.</p>
               <div className="meta"><span>No signup to download</span><span>Free &amp; unlimited editing</span><span>Vector PDF, never clipped</span></div>
-              <AskAi locale={DEFAULT_LOCALE} />
+              <HeroCta locale={DEFAULT_LOCALE} />
             </div>
-            <InvoiceEditor initialType="invoice" initialScenario="blank" />
+            <div id="editor" className="editor-anchor">
+              <InvoiceEditor initialType="invoice" initialScenario="blank" />
+            </div>
           </div>
         </section>
         <MarketingSections />

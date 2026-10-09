@@ -101,6 +101,10 @@ a{color:inherit;text-decoration:none}
 /* "Ask ChatGPT / Claude / Perplexity" — sits under the hero meta line. Quiet by
    default: it's an alternative route for people who'd rather ask than read, not
    a competitor to the editor sitting right below it. */
+.hero-cta{margin-top:18px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.hero-cta .btn{padding:12px 22px;font-size:15px}
+.hero-quota{font-size:13px;color:var(--ink-soft)}
+.editor-anchor{scroll-margin-top:72px}
 .askai{margin-top:18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .askai-lead{font-size:12.5px;color:var(--faint)}
 .askai-btns{display:flex;gap:8px;flex-wrap:wrap}

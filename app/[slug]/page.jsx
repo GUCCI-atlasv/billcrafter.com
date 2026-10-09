@@ -6,7 +6,7 @@ import MarketingSections from "@/components/MarketingSections";
 import VerticalDetail from "@/components/VerticalDetail";
 import JsonLd, { faqSchema, articleSchema } from "@/components/JsonLd";
 import HtmlLang from "@/components/HtmlLang";
-import AskAi from "@/components/AskAi";
+import HeroCta from "@/components/HeroCta";
 import { VERTICALS, getVertical } from "@/lib/seo";
 import { LOCALE_CODES, isLocale, t, localePath, DEFAULT_LOCALE, homeAlternates, isMarketVariant, primaryLocaleOf } from "@/lib/i18n";
 
@@ -83,9 +83,11 @@ export default async function SlugPage({ params }) {
                 <div className="meta">
                   <span>{L("home.m1")}</span><span>{L("home.m2")}</span><span>{L("home.m3")}</span>
                 </div>
-                <AskAi locale={slug} />
+                <HeroCta locale={slug} />
               </div>
-              <InvoiceEditor initialType="invoice" initialScenario="blank" locale={slug} />
+              <div id="editor" className="editor-anchor">
+                <InvoiceEditor initialType="invoice" initialScenario="blank" locale={slug} />
+              </div>
             </div>
           </section>
           {/* full (not slim): the localized nav links to #faq, so that

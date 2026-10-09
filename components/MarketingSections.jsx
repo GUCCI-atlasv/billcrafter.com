@@ -1,5 +1,6 @@
 import Link from "next/link";
 import VideoSection from "./VideoSection";
+import AskAi from "./AskAi";
 import JsonLd, { faqSchema, howToSchema } from "./JsonLd";
 import { localePath, DEFAULT_LOCALE } from "@/lib/i18n";
 import { mktg } from "@/lib/marketingI18n";
@@ -129,6 +130,7 @@ export default function MarketingSections({ intro, variant = "full", locale = DE
               </details>
             ))}
             <p className="muted" style={{ fontSize: 13.5, marginTop: 18 }}>{M.faq.still} <a href="mailto:support@billcrafter.com" style={{ color: "var(--ink)", textDecoration: "underline" }}>support@billcrafter.com</a>.</p>
+            <AskAi locale={locale} />
           </div>
         </div>
       </section>)}
