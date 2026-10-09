@@ -70,6 +70,9 @@ export default function AboutPage({ locale = DEFAULT_LOCALE }) {
             <h2>{a.how.h2}</h2>
             <p>{a.how.p}</p>
 
+            <h2 id="author">{a.author.h2}</h2>
+            <p>{a.author.p}</p>
+
             <h2>{a.who.h2}</h2>
             <p>{a.who.p}</p>
 

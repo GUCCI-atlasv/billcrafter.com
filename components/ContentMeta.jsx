@@ -10,7 +10,7 @@ import { AUTHOR, PUBLISHER, SITE_UPDATED, fmtDate } from "@/lib/site";
 export function Byline() {
   return (
     <p className="byline">
-      By <Link href="/about">{AUTHOR.name}</Link> · Reviewed by {PUBLISHER} ·
+      By <Link href="/about#author">{AUTHOR.name}</Link>, {AUTHOR.role.toLowerCase()} · Published by {PUBLISHER} ·
       Updated <time dateTime={SITE_UPDATED}>{fmtDate(SITE_UPDATED)}</time>
     </p>
   );

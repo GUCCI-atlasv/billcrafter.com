@@ -60,7 +60,7 @@ export function articleSchema({ headline, description, url }) {
     headline,
     ...(description ? { description } : {}),
     ...(url ? { mainEntityOfPage: url, url } : {}),
-    author: { "@type": "Organization", name: AUTHOR.name, url: AUTHOR.url },
+    author: { "@type": "Person", name: AUTHOR.name, jobTitle: AUTHOR.role, description: AUTHOR.description, url: AUTHOR.url },
     publisher: { "@type": "Organization", name: PUBLISHER, "@id": "https://billcrafter.com/#organization" },
     datePublished: SITE_PUBLISHED,
     dateModified: SITE_UPDATED,
