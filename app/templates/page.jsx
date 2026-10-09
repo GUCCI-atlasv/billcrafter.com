@@ -4,12 +4,12 @@ import SiteFooter from "@/components/SiteFooter";
 import TemplatesGallery from "@/components/TemplatesGallery";
 import { TEMPLATES, TEMPLATE_CATEGORIES, templatesInGroup } from "@/lib/templates";
 
-const TITLE = `Free invoice templates — ${TEMPLATES.length} professional invoice template designs`;
+const TITLE = `Free Invoice Templates — ${TEMPLATES.length} Editable Designs | BillCrafter`;
 const DESC = "Browse free invoice templates — plus estimate, quote and receipt templates — across styles and industries. Pick an invoice template and edit it live, no signup to download.";
 const OG_IMG = `/og?title=${encodeURIComponent(`${TEMPLATES.length} free invoice templates`)}&eyebrow=${encodeURIComponent("Template library")}`;
 
 export const metadata = {
-  title: TITLE,
+  title: { absolute: TITLE },
   description: DESC,
   alternates: { canonical: "/templates" },
   openGraph: { title: TITLE, description: DESC, type: "website", images: [{ url: OG_IMG, width: 1200, height: 630, alt: TITLE }] },
@@ -25,7 +25,7 @@ export default function TemplatesPage() {
           <div className="wrap">
             <div className="hero-head">
               <div className="eyebrow">Template library</div>
-              <h1>Pick a template. Edit it live. Download.</h1>
+              <h1>Free Invoice Templates — Edit Live, Then Download</h1>
               <p className="sub">
                 {TEMPLATES.length} free invoice, estimate, quote and receipt templates — every one is a real,
                 editable document, not a picture. No signup needed to download your first PDF.
