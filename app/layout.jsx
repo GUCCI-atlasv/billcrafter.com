@@ -111,6 +111,15 @@ export const viewport = {
 export default function RootLayout({ children }) {
   return (
     <html lang="en" className={montserrat.variable}>
+      <head>
+        {/* AdSense — plain <script> (not next/script) so the tag is in the server
+            HTML, where AdSense's site-verification crawler looks for it. */}
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8028325929767359"
+          crossOrigin="anonymous"
+        />
+      </head>
       <body>
         <JsonLd data={SITE_SCHEMA} />
         {children}
