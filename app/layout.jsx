@@ -64,6 +64,7 @@ const montserrat = Montserrat({
 
 export const metadata = {
   metadataBase: new URL("https://billcrafter.com"),
+  other: { "google-adsense-account": "ca-pub-8028325929767359" },
   title: {
     default: "BillCrafter — Free Invoice Generator",
     template: "%s — BillCrafter",
