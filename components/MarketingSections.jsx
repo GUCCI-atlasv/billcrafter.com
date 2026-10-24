@@ -1,3 +1,5 @@
+import AdSlot from "@/components/AdSlot";
+import { AD_SLOTS } from "@/lib/ads";
 import Link from "next/link";
 import VideoSection from "./VideoSection";
 import AskAi from "./AskAi";
@@ -112,6 +114,8 @@ export default function MarketingSections({ intro, variant = "full", locale = DE
         </div>
       </section>
 
+      <AdSlot slot={AD_SLOTS.inContent} />
+
       {/* Videos sit right after "how it works" — they show the same three steps
           in motion, so they reinforce rather than repeat. */}
       {full && <VideoSection locale={locale} />}
@@ -134,6 +138,8 @@ export default function MarketingSections({ intro, variant = "full", locale = DE
           </div>
         </div>
       </section>)}
+
+      {full && <AdSlot slot={AD_SLOTS.bottom} />}
 
       {full && (<section className="band">
         <div className="wrap">

@@ -1,6 +1,8 @@
 // Renders the per-vertical content from lib/seo.js: an in-page table of
 // contents, an annotated "anatomy" diagram, a "what to include" checklist,
 // three substantive sections, vertical-specific FAQs and cross-links.
+import AdSlot from "@/components/AdSlot";
+import { AD_SLOTS } from "@/lib/ads";
 import Link from "next/link";
 import { VERTICALS } from "@/lib/seo";
 import { Byline, Sources } from "./ContentMeta";
@@ -69,6 +71,8 @@ export default function VerticalDetail({ v }) {
         </div>
       </section>
 
+      <AdSlot slot={AD_SLOTS.inContent} />
+
       {v.include?.length > 0 && (
         <section className="band alt" id="checklist">
           <div className="wrap">
@@ -122,6 +126,8 @@ export default function VerticalDetail({ v }) {
       )}
 
       <Sources />
+
+      <AdSlot slot={AD_SLOTS.bottom} />
 
       <section className="band" id="more">
         <div className="wrap">

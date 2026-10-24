@@ -1,6 +1,7 @@
 import "./globals.css";
 import Script from "next/script";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
+import AdSenseScript from "@/components/AdSenseScript";
 import { Montserrat } from "next/font/google";
 import JsonLd from "@/components/JsonLd";
 import { SITE_PUBLISHED, SITE_UPDATED } from "@/lib/site";
@@ -113,13 +114,7 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en" className={montserrat.variable}>
       <head>
-        {/* AdSense — plain <script> (not next/script) so the tag is in the server
-            HTML, where AdSense's site-verification crawler looks for it. */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8028325929767359"
-          crossOrigin="anonymous"
-        />
+        <AdSenseScript />
       </head>
       <body>
         <JsonLd data={SITE_SCHEMA} />

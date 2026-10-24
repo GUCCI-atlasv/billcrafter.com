@@ -1,3 +1,5 @@
+import AdSlot from "@/components/AdSlot";
+import { AD_SLOTS } from "@/lib/ads";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import SiteNav from "@/components/SiteNav";
@@ -85,6 +87,8 @@ export default async function CategoryPage({ params }) {
           </div>
         </section>
 
+        <AdSlot slot={AD_SLOTS.inContent} />
+
         {/* SEO content — at the bottom of the page */}
         {seo.intro && (
           <section className="band alt">
@@ -118,6 +122,8 @@ export default async function CategoryPage({ params }) {
             </div>
           </section>
         )}
+
+        <AdSlot slot={AD_SLOTS.bottom} />
 
         {/* Cross-links to the other category hubs */}
         <section className="band">
