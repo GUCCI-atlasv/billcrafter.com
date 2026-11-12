@@ -35,8 +35,9 @@ const todayISO = (offset = 0) => { const d = new Date(); d.setDate(d.getDate() +
 
 const STYLES = ["modern", "minimal", "classic", "band", "ruled", "compact", "elegant", "mono"];
 
-export default function InvoiceEditor({ initialType = "invoice", initialScenario = "blank", initialStyle = "modern", initialAccent = ACCENTS[0], locale = "en", initialSnapshot = null, initialMode = "edit", onSaved, onLibrarySaved }) {
+export default function InvoiceEditor({ initialType = "invoice", initialScenario = "blank", initialStyle = "modern", initialAccent = ACCENTS[0], initialStamp = "", locale = "en", initialSnapshot = null, initialMode = "edit", onSaved, onLibrarySaved }) {
   const [type, setTypeState] = useState(initialType);
+  const [activeScenario, setActiveScenario] = useState(initialScenario);
   const [tpl, setTpl] = useState(initialStyle);
   const [accent, setAccent] = useState(initialAccent);
   const [currency, setCurrency] = useState(localeCurrency(locale));
@@ -75,10 +76,19 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   const [emailSubject, setEmailSubject] = useState("");
   const [emailMsg, setEmailMsg] = useState("");
   const [sending, setSending] = useState(false);
-  const [stamp, setStamp] = useState("");              // "" | paid | unpaid | overdue | draft | void
+  const [stamp, setStamp] = useState(initialStamp || (initialType === "receipt" ? "paid" : "")); // "" | paid | unpaid | overdue | draft | void
   const [shareUrl, setShareUrl] = useState("");
   const [sharing, setSharing] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
+  const [hideBrandFoot, setHideBrandFoot] = useState(false);
+  // Local anti-loss draft state: tracks distinct fields/rows edited in this
+  // session so we surface the subtle "Auto-saved locally" nudge once >3 lines
+  // have been typed, and persist/restore in-progress drafts across refreshes.
+  const [touchedCount, setTouchedCount] = useState(0);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const [draftBannerOff, setDraftBannerOff] = useState(false);
+  const touchedKeysRef = useRef(new Set());
+  const readyForAutosaveRef = useRef(false);
   // The signature is part of the document, not a stamp applied to the finished
   // PDF: it renders inside the sheet, so it sits directly under the invoice like
   // any other field and exports in the right place. { png, name, at } | null
@@ -112,8 +122,33 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   // currency therefore has to recompute the totals, not just relabel them.
   const dec = currencyDecimals(currency);
 
-  const setField = (k, v) => setF((p) => ({ ...p, [k]: v }));
+  const markTouched = (key) => {
+    if (!readyForAutosaveRef.current) return;
+    if (!touchedKeysRef.current.has(key)) {
+      touchedKeysRef.current.add(key);
+      setTouchedCount(touchedKeysRef.current.size);
+    }
+  };
+  const setField = (k, v) => {
+    markTouched("f:" + k);
+    setF((p) => ({ ...p, [k]: v }));
+  };
   const totals = useMemo(() => computeTotals(items, { ...adj, decimals: dec, taxMode }), [items, adj, dec, taxMode]);
+  // Count non-empty user data lines so blank-canvas visitors who type >3 lines
+  // (e.g. from + client + 2 line items, or 4 line items) get the local-autosave nudge.
+  const enteredLineCount = useMemo(() => {
+    let n = 0;
+    if ((f.fromName || "").trim()) n += 1;
+    n += (f.fromDetails || "").split("\n").filter((l) => l.trim()).length;
+    if ((f.toName || "").trim()) n += 1;
+    n += (f.toDetails || "").split("\n").filter((l) => l.trim()).length;
+    n += (f.jobAddr || "").split("\n").filter((l) => l.trim()).length;
+    for (const it of items) {
+      if (it.section !== undefined) continue;
+      if ((it.desc || "").trim() || (it.detail || "").trim() || Number(it.rate) > 0) n += 1;
+    }
+    return n;
+  }, [f.fromName, f.fromDetails, f.toName, f.toDetails, f.jobAddr, items]);
   // Grow the multi-line fields to fit their content so nothing is clipped in the
   // PDF (html2canvas captures the element's rendered height, not its scroll area).
   useEffect(() => {
@@ -129,10 +164,36 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     return isNaN(d) ? iso : d.toLocaleDateString(INTL);
   };
 
+  const defaultDueDays = (docTypeKey, scenObj) => {
+    if (docTypeKey === "receipt") return 0;
+    if (scenObj && Number.isFinite(scenObj.validDays)) return scenObj.validDays;
+    if (docTypeKey === "estimate" || docTypeKey === "quote") return 30;
+    return 14;
+  };
+  const draftStorageKey = () => {
+    try { return "bc_autosave:" + (window.location.pathname || "/"); } catch { return "bc_autosave:/"; }
+  };
+
   // ---- init (client only, avoids hydration mismatch) ----
   useEffect(() => {
-    setField("issueDate", todayISO());
-    setField("dueDate", todayISO(14));
+    // Allow URL query parameters (?type=receipt&scenario=contractor&style=band&stamp=paid)
+    // to pre-configure the editor on arrival, alongside path-based landing pages.
+    let effType = initialType;
+    let effScen = initialScenario;
+    let effStamp = initialStamp || (initialType === "receipt" ? "paid" : "");
+    let hasQueryOverride = false;
+    try {
+      const qs = new URLSearchParams(window.location.search);
+      const qType = (qs.get("type") || "").toLowerCase();
+      const qScen = (qs.get("scenario") || qs.get("template") || "").toLowerCase();
+      const qStyle = (qs.get("style") || "").toLowerCase();
+      const qStamp = (qs.get("stamp") || "").toLowerCase();
+      if (TYPES[qType]) { effType = qType; hasQueryOverride = true; if (!qStamp && qType === "receipt") effStamp = "paid"; }
+      if (SCENARIOS[qScen]) { effScen = qScen; hasQueryOverride = true; }
+      if (STYLES.includes(qStyle)) { setTpl(qStyle); hasQueryOverride = true; }
+      if (STAMP_KEYS.includes(qStamp) || qStamp === "none") { effStamp = qStamp === "none" ? "" : qStamp; hasQueryOverride = true; }
+    } catch {}
+
     const u = readUser();
     if (u) setUser(u);
     // Reconcile with the real server session (source of truth for login + plan).
@@ -144,6 +205,23 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     try { const h = JSON.parse(localStorage.getItem("bc_history")); if (h) setHistory(h); } catch {}
     try { const us = JSON.parse(localStorage.getItem("bc_usage")); if (us) setUsage(us); } catch {}
     syncUsage();  // server is the source of truth (anonymous exports are counted by IP)
+
+    let restoredFromLocal = false;
+    if (!initialSnapshot && !hasQueryOverride) {
+      try {
+        const rawDraft = localStorage.getItem(draftStorageKey());
+        if (rawDraft) {
+          const parsed = JSON.parse(rawDraft);
+          // Restore uncommitted local drafts edited within the last 7 days.
+          if (parsed && Array.isArray(parsed.items) && parsed.savedAt && (Date.now() - parsed.savedAt < 7 * 86400 * 1000)) {
+            loadSnap(parsed);
+            setDraftRestored(true);
+            restoredFromLocal = true;
+          }
+        }
+      } catch {}
+    }
+
     if (initialSnapshot && initialSnapshot.items) {
       // Reopen or duplicate a saved invoice.
       loadSnap(initialSnapshot);
@@ -158,11 +236,32 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
         // Save updates it (works even if this browser never created it).
         try { const m = JSON.parse(localStorage.getItem("bc_srvmap") || "{}"); m[initialSnapshot.id] = initialSnapshot._id; localStorage.setItem("bc_srvmap", JSON.stringify(m)); } catch {}
       }
-    } else if (initialScenario && initialScenario !== "blank") {
-      applyScenario(initialScenario);
+    } else if (!restoredFromLocal) {
+      setTypeState(effType);
+      setStamp(effStamp);
+      const scenObj = SCENARIOS[effScen];
+      const dueDays = defaultDueDays(effType, scenObj);
+      setF((p) => ({
+        ...p,
+        invNo: TYPES[effType].prefix + "-0001",
+        issueDate: todayISO(),
+        dueDate: todayISO(dueDays),
+      }));
+      if (effScen && effScen !== "blank") {
+        applyScenario(effScen, effType, effStamp);
+      } else if (effType === "receipt") {
+        setF((p) => ({ ...p, payMethod: p.payMethod || "Cash / Card", notes: "Payment received in full — thank you!" }));
+      } else if (effType === "quote") {
+        setF((p) => ({ ...p, notes: "Quote valid for 30 days from issue date. Thank you!" }));
+      } else if (effType === "estimate") {
+        setF((p) => ({ ...p, notes: "Estimate valid for 30 days from issue date. Thank you!" }));
+      }
     }
+    // Enable user-edit tracking only after initial hydration/scenario setup settles.
+    const tmr = setTimeout(() => { readyForAutosaveRef.current = true; }, 80);
     // one visitor beacon per browser session
     try { if (!sessionStorage.getItem("bc_visit")) { sessionStorage.setItem("bc_visit", "1"); track("visit"); } } catch {}
+    return () => clearTimeout(tmr);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -180,30 +279,87 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   function trackExport(format) { track("export", { template: tpl, docType: type, format }); }
 
   // ---- scenarios / templates ----
-  function applyScenario(key) {
+  function applyScenario(key, targetType = type, explicitStamp) {
     const s = SCENARIOS[key]; if (!s) return;
+    setActiveScenario(key);
+    const dueDays = defaultDueDays(targetType, s);
     if (key !== "blank") {
-      setF((p) => ({ ...p, fromName: s.name, fromDetails: s.details, payNote: s.pay, notes: s.notes, jobAddr: s.jobAddr || "",
+      // Adapt invoice-oriented contractor notes when loaded into an Estimate view.
+      const adaptedNotes = (targetType === "estimate" && key === "contractor")
+        ? "Estimate valid for 30 days. Good-faith projection of labor and materials; excludes permits or hidden structural repairs unless itemized. Converts to invoice on approval."
+        : s.notes;
+      const scenTotals = computeTotals(s.items, { taxRate: s.tax || 0, decimals: dec });
+      const resolvedPaid = s.paid !== undefined
+        ? s.paid
+        : ((s.paidFull || targetType === "receipt") ? scenTotals.total : 0);
+      setF((p) => ({
+        ...p,
+        fromName: s.name, fromDetails: s.details, payNote: s.pay, notes: adaptedNotes,
+        jobAddr: s.jobAddr || "",
+        payMethod: s.payMethod !== undefined ? s.payMethod : (targetType === "receipt" ? (p.payMethod || "Card / Bank transfer") : p.payMethod),
+        dueDate: todayISO(dueDays),
         svcFrom: s.svc?.from || "", svcTo: s.svc?.to || "", svcFreq: s.svc?.freq || "", svcScope: s.svc?.scope || "",
-        timesheet: !!s.timesheet }));
-      setAdj((p) => ({ ...p, taxRate: s.tax || 0, paid: s.paid || 0, depositVal: s.deposit?.val || 0, depositType: s.deposit?.type || "pct" }));
+        timesheet: !!s.timesheet,
+      }));
+      setAdj((p) => ({ ...p, taxRate: s.tax || 0, paid: resolvedPaid, depositVal: s.deposit?.val || 0, depositType: s.deposit?.type || "pct" }));
       setSchedule((s.schedule || []).map((r) => ({ ...r })));
+      setPhotos([]);
+      if (explicitStamp !== undefined) setStamp(explicitStamp);
+      else if (s.stamp) setStamp(s.stamp);
+    } else {
+      const blankNotes = targetType === "receipt" ? "Payment received in full — thank you!"
+        : targetType === "quote" ? "Quote valid for 30 days. Thank you!"
+        : targetType === "estimate" ? "Estimate valid for 30 days. Thank you!"
+        : s.notes;
+      setF((p) => ({ ...p, fromName: "", fromDetails: "", toName: "", toDetails: "", jobAddr: "",
+        svcFrom: "", svcTo: "", svcFreq: "", svcScope: "", timesheet: false, payNote: "", notes: blankNotes,
+        dueDate: todayISO(dueDays) }));
+      setAdj((p) => ({ ...p, taxRate: 0, paid: 0, depositVal: 0, depositType: "pct" }));
+      setSchedule([]);
       setPhotos([]);
     }
     setItems(s.items.map((i) => ({ ...i })));
   }
   // A "receipt" template is a completed job marked paid in full.
   function applyTemplate(key) {
+    markTouched("tpl:" + key);
     if (key === "receipt") {
-      const s = SCENARIOS.photography;
-      setF((p) => ({ ...p, fromName: s.name, fromDetails: s.details, payNote: s.pay, notes: "Paid — thank you!" }));
-      setItems(s.items.map((i) => ({ ...i })));
+      setActiveScenario("receipt");
+      const s = SCENARIOS.receipt || SCENARIOS.photography;
       const t = computeTotals(s.items, { taxRate: s.tax || 0, decimals: dec });
+      setF((p) => ({
+        ...p,
+        fromName: s.name, fromDetails: s.details,
+        payMethod: s.payMethod || "Card ending 4242",
+        payNote: s.pay,
+        notes: s.notes || "Payment received in full — thank you!",
+        dueDate: todayISO(0),
+      }));
+      setItems(s.items.map((i) => ({ ...i })));
       setAdj((p) => ({ ...p, taxRate: s.tax || 0, paid: t.total }));
-      changeType("receipt");
+      setStamp("paid");
+      changeType("receipt", { keepStamp: true, keepDates: true });
       return;
     }
-    applyScenario(key);
+    applyScenario(key, type);
+  }
+  function resetLocalDraft() {
+    try { localStorage.removeItem(draftStorageKey()); } catch {}
+    touchedKeysRef.current.clear();
+    setTouchedCount(0);
+    setDraftRestored(false);
+    const defaultStamp = initialStamp || (initialType === "receipt" ? "paid" : "");
+    setTypeState(initialType);
+    setStamp(defaultStamp);
+    setF((p) => ({
+      ...p,
+      toName: "", toDetails: "", poNo: "",
+      invNo: TYPES[initialType].prefix + "-0001",
+      issueDate: todayISO(),
+      dueDate: todayISO(defaultDueDays(initialType, SCENARIOS[initialScenario])),
+    }));
+    applyScenario(initialScenario || "blank", initialType, defaultStamp);
+    flash("Reset to template defaults");
   }
 
   const TEMPLATES = [
@@ -213,26 +369,41 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   ];
 
   // ---- type ----
-  function changeType(key) {
+  function changeType(key, opts = {}) {
     setTypeState(key);
     const t = TYPES[key];
-    setF((p) => { const m = (p.invNo || "").match(/(\d+)(?!.*\d)/); return { ...p, invNo: t.prefix + "-" + (m ? m[1] : "0001") }; });
+    setF((p) => {
+      const m = (p.invNo || "").match(/(\d+)(?!.*\d)/);
+      const nextDue = opts.keepDates ? p.dueDate : todayISO(defaultDueDays(key, SCENARIOS[activeScenario]));
+      return { ...p, invNo: t.prefix + "-" + (m ? m[1] : "0001"), dueDate: nextDue };
+    });
+    if (!opts.keepStamp) {
+      if (key === "receipt") {
+        setStamp((prev) => prev || "paid");
+        if (totals.total > 0 && Number(adj.paid) === 0) setAdj((p) => ({ ...p, paid: totals.total }));
+      } else if (!user && stamp === "paid") {
+        setStamp("");
+      }
+    }
   }
   function convertNext() {
     if (!ty.next) { alert("A receipt is the final document."); return; }
     const tgt = ty.next;
-    if (tgt === "receipt") { setAdj((p) => ({ ...p, paid: totals.total })); setField("dueDate", todayISO()); }
+    if (tgt === "receipt") { setAdj((p) => ({ ...p, paid: totals.total })); setField("dueDate", todayISO()); setStamp("paid"); }
     idRef.current = "inv_" + Date.now();
-    changeType(tgt);
+    changeType(tgt, { keepStamp: tgt === "receipt", keepDates: tgt === "receipt" });
     alert("Converted to " + TYPES[tgt].word + ". The same details carried over.");
   }
 
   // ---- items ----
-  const addItem = () => setItems((p) => [...p, blankItem()]);
-  const addSection = () => setItems((p) => [...p, sectionRow(), blankItem()]);
-  const addTimeRow = () => setItems((p) => [...p, timeItem(todayISO())]);
-  const delItem = (i) => setItems((p) => p.filter((_, idx) => idx !== i));
-  const updItem = (i, k, v) => setItems((p) => p.map((it, idx) => idx === i ? { ...it, [k]: (k === "qty" || k === "rate") ? parseFloat(v || 0) : v } : it));
+  const addItem = () => { markTouched("add:" + items.length); setItems((p) => [...p, blankItem()]); };
+  const addSection = () => { markTouched("sec:" + items.length); setItems((p) => [...p, sectionRow(), blankItem()]); };
+  const addTimeRow = () => { markTouched("time:" + items.length); setItems((p) => [...p, timeItem(todayISO())]); };
+  const delItem = (i) => { markTouched("del:" + i); setItems((p) => p.filter((_, idx) => idx !== i)); };
+  const updItem = (i, k, v) => {
+    markTouched(`item:${i}:${k}`);
+    setItems((p) => p.map((it, idx) => idx === i ? { ...it, [k]: (k === "qty" || k === "rate") ? parseFloat(v || 0) : v } : it));
+  };
   const hasSections = items.some((it) => it.section !== undefined);
   // The date column appears when the document is in timesheet mode or any row
   // already carries a date (e.g. a saved invoice from before the toggle existed).
@@ -294,9 +465,21 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
 
   // ---- persistence (mock cloud = localStorage) ----
   function snapshot() {
-    return { id: idRef.current, type, tpl, accent, currency, logo, items, adj, f, stamp, sig, photos, schedule, taxMode,
+    return { id: idRef.current, type, activeScenario, tpl, accent, currency, logo, items, adj, f, stamp, sig, photos, schedule, taxMode,
+      shareUrl, hideBrandFoot,
       invNo: f.invNo, client: f.toName || "(no client)", total: totals.total, date: f.issueDate, savedAt: Date.now() };
   }
+  // Auto-save the working draft to browser localStorage whenever the user edits
+  // fields, so accidental refreshes or tab closes never lose typed line items.
+  useEffect(() => {
+    if (!readyForAutosaveRef.current) return;
+    if (touchedCount === 0) return;
+    const tmr = setTimeout(() => {
+      try { localStorage.setItem(draftStorageKey(), JSON.stringify(snapshot())); } catch {}
+    }, 380);
+    return () => clearTimeout(tmr);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [touchedCount, type, tpl, accent, currency, logo, items, adj, f, stamp, schedule, hideBrandFoot]);
   // Sync to D1. Maps the local invoice id -> server record id so re-saving
   // UPDATES instead of duplicating. Self-healing: if the mapped record no longer
   // exists (404 — e.g. the table was recreated or we're on another device), it
@@ -337,9 +520,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       return next;
     });
   }
-  // Incidental save (fired after an export/email). Best-effort, no UI noise.
-  function doSaveInvoice() {
-    const snap = snapshot();
+  // Incidental save (fired after an export/email/share). Best-effort, no UI noise.
+  function doSaveInvoice(overrideShareUrl) {
+    const snap = overrideShareUrl ? { ...snapshot(), shareUrl: overrideShareUrl } : snapshot();
     writeLocalHistory(snap);
     persistServer(snap).then((res) => { if (res.ok && onSaved) onSaved(); });
     autoSaveLibrary();
@@ -527,6 +710,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     if (!snap) return;
     idRef.current = snap.id || idRef.current;
     if (snap.type) setTypeState(snap.type);
+    if (snap.activeScenario) setActiveScenario(snap.activeScenario);
     if (snap.tpl) setTpl(snap.tpl);
     if (snap.accent) setAccent(snap.accent);
     if (snap.currency) setCurrency(snap.currency);
@@ -537,6 +721,8 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     logoRemovedRef.current = !snap.logo;
     setTaxMode(taxModeOf(snap));
     setLogo(snap.logo || null); setStamp(snap.stamp || ""); setSig(snap.sig || null);
+    if (snap.shareUrl !== undefined) setShareUrl(snap.shareUrl || "");
+    if (snap.hideBrandFoot !== undefined) setHideBrandFoot(!!snap.hideBrandFoot);
     setPhotos(Array.isArray(snap.photos) ? snap.photos.map((p) => ({ ...p })) : []);
     setSchedule(Array.isArray(snap.schedule) ? snap.schedule.map((r) => ({ ...r })) : []);
     if (Array.isArray(snap.items) && snap.items.length) setItems(snap.items.map((i) => ({ ...i })));
@@ -728,6 +914,21 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   // the next field added gets one too, swap EVERY remaining live control for
   // the same .se-print text at capture time. Same classes, so the sheet's own
   // typography and alignment carry over untouched.
+  function flattenControlsIn(sheet, doc, view) {
+    sheet.querySelectorAll("input, textarea, select").forEach((el) => {
+      if (el.type === "checkbox" || el.type === "radio" || el.type === "file") return;
+      const cs = view.getComputedStyle(el);
+      if (cs.display === "none") return;
+      const val = el.tagName === "SELECT"
+        ? (el.options[el.selectedIndex]?.text || "")
+        : (el.value || "");
+      const repl = doc.createElement("div");
+      repl.className = ((el.className || "") + " se-print").trim();
+      if (cs.textAlign && cs.textAlign !== "start") repl.style.textAlign = cs.textAlign;
+      repl.textContent = val;
+      el.replaceWith(repl);
+    });
+  }
   function flattenControlsForCapture(doc) {
     const view = doc.defaultView || window;
     captureRoots(doc).forEach((sheet) => {
@@ -933,7 +1134,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       if (r.ok && d.url) {
         setShareUrl(d.url);
         try { await navigator.clipboard.writeText(d.url); flash("Link copied"); } catch { flash("Link created"); }
-        if (user) doSaveInvoice();
+        if (user) doSaveInvoice(d.url);
       } else if (r.status === 401) { openAuth("Sign in to share invoices"); }
       else { alert("Couldn't create the link. Please try again."); }
     } catch { alert("Couldn't create the link. Please try again."); }
@@ -1014,6 +1215,14 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
 
   const remDisplay = remaining();
   const sheetStyle = { ["--accent"]: accent };
+  const canShowStamp = Boolean(stamp && (user || (type === "receipt" && stamp === "paid")));
+  const showAutosaveBanner = Boolean(
+    !user && !draftBannerOff && (
+      draftRestored ||
+      touchedCount > 3 ||
+      (activeScenario === "blank" && touchedCount > 0 && enteredLineCount > 3)
+    )
+  );
 
   return (
     <>
@@ -1021,6 +1230,38 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
         <div className="tool-grid">
           {/* EDITOR (WYSIWYG) */}
           <div className="editor-pane">
+            {showAutosaveBanner ? (
+              <div className="autosave-bar print-hide" role="status">
+                <div className="ab-msg">
+                  <span className="ab-dot" aria-hidden="true" />
+                  <span>
+                    {draftRestored
+                      ? "Draft restored from your browser · Sign up free to sync & edit on any device"
+                      : "Auto-saved locally in your browser · Create a free account to continue editing on any device"}
+                  </span>
+                </div>
+                <div className="ab-acts">
+                  {draftRestored ? (
+                    <button type="button" className="ab-reset" onClick={resetLocalDraft}>Reset</button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="ab-cta"
+                    onClick={() => openAuth("Create a free account — sync & edit your drafts on any device")}
+                  >
+                    Sign up free →
+                  </button>
+                  <button
+                    type="button"
+                    className="ab-x"
+                    aria-label="Dismiss notice"
+                    onClick={() => setDraftBannerOff(true)}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ) : null}
             <div ref={sheetRef} className={"sheet " + tpl} style={sheetStyle}>
               {/* Status stamp. It has to live inside .sheet — sheetRef is what
                   html2pdf captures and what print sees, so a stamp rendered
@@ -1028,7 +1269,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                   aria-hidden because the status is already stated in the totals
                   ("Paid in full" / "Balance due"); the stamp is decoration over
                   the top of it, and reading it out twice helps nobody. */}
-              {stamp && user ? <div className={"stamp stamp-" + stamp} aria-hidden="true">{stampLabel(locale, stamp)}</div> : null}
+              {canShowStamp ? <div className={"stamp stamp-" + stamp} aria-hidden="true">{stampLabel(locale, stamp)}</div> : null}
               <div className="inv-head">
                 <div className="brandblock">
                   {/* The remove control is a sibling of the label, not a child:
@@ -1309,6 +1550,40 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                   </div>
                 ) : null}
               </div>
+
+              {/* Subtle footer attribution & online verification link on exported PDFs */}
+              {(!hideBrandFoot || shareUrl) ? (
+                <div className="doc-brand-foot">
+                  <div className="dbf-links">
+                    {shareUrl ? (
+                      <>
+                        <span>View online: <a href={shareUrl} target="_blank" rel="noopener noreferrer">{shareUrl.replace(/^https?:\/\//, "")}</a></span>
+                        {!hideBrandFoot ? <span className="dbf-sep">·</span> : null}
+                      </>
+                    ) : null}
+                    {!hideBrandFoot ? (
+                      <a href="https://billcrafter.com" target="_blank" rel="noopener noreferrer">
+                        Powered by BillCrafter.com — Free Receipt &amp; Invoice Maker
+                      </a>
+                    ) : null}
+                  </div>
+                  {!hideBrandFoot ? (
+                    <button
+                      type="button"
+                      className="dbf-toggle print-hide"
+                      onClick={() => {
+                        if (!user) {
+                          openAuth("Sign up free to remove the footer link & unlock unlimited PDF exports");
+                          return;
+                        }
+                        setHideBrandFoot(true);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -1376,7 +1651,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
             <div className="sp-group"><div className="sp-h">Templates</div>
               <div className="sp-presets">
                 {TEMPLATES.map(([k, label]) => (
-                  <button key={k} className="chip" onClick={() => applyTemplate(k)}>{label}</button>
+                  <button key={k} className={"chip" + (activeScenario === k ? " active" : "")} onClick={() => applyTemplate(k)}>{label}</button>
                 ))}
               </div>
             </div>
@@ -1387,7 +1662,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
               </select>
             </div>
 
-            {user && (
+            {(user || type === "receipt") && (
             <div className="sp-group">
               <div className="sp-h">Stamp</div>
               <div className="tpl-select" style={{ flexWrap: "wrap", gap: 6 }}>
@@ -1395,7 +1670,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                 {STAMP_KEYS.map((k) => (
                   <button key={k} className={"tpl-btn" + (stamp === k ? " active" : "")}
                     onClick={() => {
-                      if (!user) { openAuth("Sign up free to add PAID / UNPAID stamps"); return; }
+                      if (!user && !(type === "receipt" && k === "paid")) { openAuth("Sign up free to add PAID / UNPAID stamps"); return; }
                       setStamp(k);
                     }}>{stampLabel(locale, k)}</button>
                 ))}

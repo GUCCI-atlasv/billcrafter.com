@@ -15,7 +15,10 @@ import { mktg } from "@/lib/marketingI18n";
 const INDUSTRIES = [
   ["/freelance-invoice-generator", "Freelance"],
   ["/contractor-invoice-generator", "Contractor"],
+  ["/contractor-estimate-generator", "Contractor estimate"],
   ["/handyman-invoice-template", "Handyman"],
+  ["/rent-receipt-maker", "Rent receipt"],
+  ["/freelance-design-quote-generator", "Design & photo quote"],
   ["/consulting-invoice-generator", "Consulting"],
   ["/hourly-invoice", "Hourly"],
   ["/photography-invoice-template", "Photography"],

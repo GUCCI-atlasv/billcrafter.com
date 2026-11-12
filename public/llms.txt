@@ -8,9 +8,8 @@
 - 45 free, editable templates across 8 layouts and 9 industry categories.
 - WYSIWYG editing: type directly on the document; totals and tax calculate live.
 - Multi-currency and region-aware tax formatting; 25+ currencies incl. USD, EUR, GBP, INR, USDT/USDC.
-- Free tier: 1 export without an account, 5 exports/month with a free account.
+- Free tier: 1 PDF export per day without an account; unlimited exports, status stamps, share links, e-signature, and recurring invoices with a free account (no paid plans).
 - Every document downloads as PDF — one format, pixel-accurate, no watermark on any plan.
-- Pro (in private beta): unlimited exports, PAID/UNPAID status stamps, share links, recurring invoices.
 
 ## Built for how trades and services actually bill
 
@@ -38,13 +37,16 @@ someone in a trade would pick this over a blank template:
 - Estimate generator: https://billcrafter.com/estimate-generator
 - Quote generator: https://billcrafter.com/quote-generator
 - Receipt maker: https://billcrafter.com/receipt-maker
+- Rent receipt maker: https://billcrafter.com/rent-receipt-maker
 - Proforma invoice generator: https://billcrafter.com/proforma-invoice-generator
 - Bill generator: https://billcrafter.com/bill-generator
 
 ### Guides by trade
 
 - Freelance: https://billcrafter.com/freelance-invoice-generator
+- Freelance design & photography quote: https://billcrafter.com/freelance-design-quote-generator
 - Contractor: https://billcrafter.com/contractor-invoice-generator
+- Contractor & handyman estimate: https://billcrafter.com/contractor-estimate-generator
 - Handyman: https://billcrafter.com/handyman-invoice-template
 - Consulting: https://billcrafter.com/consulting-invoice-generator
 - Small business: https://billcrafter.com/small-business-invoice-generator

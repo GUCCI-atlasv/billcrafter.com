@@ -85,8 +85,10 @@ export async function POST(request) {
   if (!quota.allowed) {
     return Response.json({ ok: false, error: "quota", counted: false }, { status: 402 });
   }
-  // Status stamps (PAID / UNPAID …) need an account.
-  if (!quota.user && doc.stamp) doc.stamp = "";
+  // Status stamps (UNPAID / OVERDUE / VOID …) need an account, except the
+  // default PAID stamp on a receipt so /receipt-maker exports WYSIWYG without sign-up.
+  const allowAnonReceiptStamp = doc.type === "receipt" && doc.stamp === "paid";
+  if (!quota.user && doc.stamp && !allowAnonReceiptStamp) doc.stamp = "";
   if (await tooManyAttempts(env, request, quota.user)) {
     // Nothing is charged: this is our cost cap, not the caller's allowance.
     return Response.json({ ok: false, error: "rate_limited", counted: false }, { status: 429 });

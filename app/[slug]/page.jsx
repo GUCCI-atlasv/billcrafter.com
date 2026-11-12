@@ -44,20 +44,23 @@ export async function generateMetadata({ params }) {
 
   const v = getVertical(slug);
   if (!v) return {};
-  // `title` is an optional, longer <title> for search; the H1 stays readable.
-  const title = v.title || v.h1;
+  // `metaTitle` emits an exact SERP <title> (bypassing the root "%s — BillCrafter"
+  // template when we need full control over character budget and phrasing);
+  // `title` is an optional shorter override; `h1` stays human-readable on page.
+  const socialTitle = v.metaTitle || v.title || v.h1;
+  const desc = v.metaDescription || v.sub;
   return {
-    title,
-    description: v.sub,
+    title: v.metaTitle ? { absolute: v.metaTitle } : (v.title || v.h1),
+    description: desc,
     // SEO landing pages only exist in English. Declaring locale-prefixed
     // alternates here sends crawlers to URLs that permanently redirect back.
     alternates: { canonical: `/${v.slug}` },
     openGraph: {
-      title, description: v.sub, type: "website",
+      title: socialTitle, description: desc, type: "website",
       images: [{ url: `/og/${v.slug}.png`, width: 1200, height: 630, alt: `${v.h1} — BillCrafter` }],
     },
     twitter: {
-      card: "summary_large_image", title, description: v.sub,
+      card: "summary_large_image", title: socialTitle, description: desc,
       images: [`/og/${v.slug}.png`],
     },
   };
@@ -104,18 +107,23 @@ export default async function SlugPage({ params }) {
   if (!v) notFound();
   return (
     <>
-      <JsonLd data={articleSchema({ headline: v.h1, description: v.sub, url: `https://billcrafter.com/${v.slug}` })} />
+      <JsonLd data={articleSchema({ headline: v.h1, description: v.metaDescription || v.sub, url: `https://billcrafter.com/${v.slug}` })} />
       {v.faq?.length ? <JsonLd data={faqSchema(v.faq)} /> : null}
       <SiteNav />
       <main>
         <section className="hero">
           <div className="wrap">
             <div className="hero-head">
+              {v.eyebrow ? <div className="eyebrow">{v.eyebrow}</div> : null}
               <h1>{v.h1}</h1>
               <p className="sub">{v.sub}</p>
-              <div className="meta"><span>No signup to download</span><span>Free &amp; unlimited editing</span><span>Vector PDF, never clipped</span></div>
+              <div className="meta"><span>100% free · No sign-up</span><span>Instant PDF · No watermark</span><span>Vector PDF, never clipped</span></div>
             </div>
-            <InvoiceEditor initialType={v.type} initialScenario={v.scenario} />
+            <InvoiceEditor
+              initialType={v.type}
+              initialScenario={v.scenario}
+              initialStamp={v.stamp || (v.type === "receipt" ? "paid" : "")}
+            />
           </div>
         </section>
         <VerticalDetail v={v} />

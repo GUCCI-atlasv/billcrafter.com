@@ -11,22 +11,46 @@ function Check() {
   return (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15, flex: "none", marginTop: 3, color: "var(--brand)" }}><polyline points="20 6 9 17 4 12" /></svg>);
 }
 
+const CORE_WORKFLOW = [
+  { slug: "", href: "/", mark: "I", name: "Invoice generator", desc: "Bill clients & collect payment (PDF)" },
+  { slug: "quote-generator", href: "/quote-generator", mark: "Q", name: "Quote generator", desc: "Fixed-price business quotes" },
+  { slug: "estimate-generator", href: "/estimate-generator", mark: "E", name: "Estimate generator", desc: "Labor & materials job estimates" },
+  { slug: "receipt-maker", href: "/receipt-maker", mark: "R", name: "Receipt maker", desc: "Instant Paid proof of payment" },
+];
+
+const CORE_FALLBACK_BY_SLUG = {
+  "receipt-maker": { slug: "rent-receipt-maker", href: "/rent-receipt-maker", mark: "Rr", name: "Rent receipt maker", desc: "Landlord & tenant rent receipts" },
+  "estimate-generator": { slug: "contractor-estimate-generator", href: "/contractor-estimate-generator", mark: "Ce", name: "Contractor estimate", desc: "Construction & handyman estimates" },
+  "quote-generator": { slug: "freelance-design-quote-generator", href: "/freelance-design-quote-generator", mark: "Dq", name: "Design & photo quote", desc: "Creative scope & licensing quotes" },
+};
+
 export default function VerticalDetail({ v }) {
   if (!v) return null;
-  // Take the six guides that FOLLOW this one, wrapping around the end of the
-  // list. The previous `.filter(...).slice(0, 6)` always returned the first six
-  // entries of VERTICALS, so every page linked to the same handful and the ten
-  // guides added later — appended to the end of the array — had no inbound
-  // internal links anywhere on the site. Orphan pages get crawled reluctantly
-  // and rank badly, however good the writing is.
-  //
-  // Rotating by position gives each guide exactly six inbound links, spreads
-  // link equity evenly, and stays deterministic — which matters because these
-  // pages are prerendered and cached.
-  const idx = VERTICALS.findIndex((x) => x.slug === v.slug);
-  const others = Array.from({ length: Math.min(6, VERTICALS.length - 1) }, (_, i) =>
-    VERTICALS[(idx + 1 + i) % VERTICALS.length]
+  // Cross-intent workflow links: every vertical landing page links across the
+  // four core document intents (Invoice <-> Quote <-> Estimate <-> Receipt) so
+  // crawlers and users move effortlessly across the full billing funnel.
+  const workflowCards = CORE_WORKFLOW.map((item) =>
+    item.slug === v.slug && CORE_FALLBACK_BY_SLUG[v.slug]
+      ? CORE_FALLBACK_BY_SLUG[v.slug]
+      : item
   );
+  const workflowSlugs = new Set(workflowCards.map((c) => c.slug).filter(Boolean));
+
+  // Pair same-intent vertical pages first (e.g. /receipt-maker <-> /rent-receipt-maker),
+  // then fill remaining slots by deterministic rotation across VERTICALS so no
+  // guide is ever orphaned.
+  const idx = VERTICALS.findIndex((x) => x.slug === v.slug);
+  const sameType = VERTICALS.filter(
+    (x) => x.slug !== v.slug && !workflowSlugs.has(x.slug) && x.type === v.type
+  );
+  const rotated = [];
+  for (let step = 1; step < VERTICALS.length && sameType.length + rotated.length < 8; step++) {
+    const cand = VERTICALS[(idx + step) % VERTICALS.length];
+    if (cand.slug === v.slug || workflowSlugs.has(cand.slug)) continue;
+    if (sameType.some((s) => s.slug === cand.slug)) continue;
+    rotated.push(cand);
+  }
+  const others = [...sameType, ...rotated].slice(0, 8);
   const noun = v.type === "invoice" ? "invoice" : v.type;
   const Noun = noun[0].toUpperCase() + noun.slice(1);
 
@@ -131,9 +155,25 @@ export default function VerticalDetail({ v }) {
 
       <section className="band" id="more">
         <div className="wrap">
-          <div className="eyebrow">More generators</div>
-          <h2>Other documents you can create free.</h2>
-          <div className="tpl-grid">
+          <div className="eyebrow">Complete billing workflow</div>
+          <h2>Switch between quotes, estimates, invoices &amp; receipts.</h2>
+          <p className="lead" style={{ maxWidth: 700 }}>
+            Every BillCrafter generator is 100% free with instant PDF download and no sign-up required. Pick the
+            exact document your client or tenant needs right now:
+          </p>
+          <div className="tpl-grid" style={{ marginTop: 24 }}>
+            {workflowCards.map((c) => (
+              <Link key={c.href} className="tpl-card" href={c.href}>
+                <div className="mono">{c.mark}</div>
+                <div className="nm">{c.name}</div>
+                <div className="ds">{c.desc}</div>
+              </Link>
+            ))}
+          </div>
+
+          <div className="eyebrow" style={{ marginTop: 48 }}>Related generators &amp; templates</div>
+          <h3 style={{ fontSize: 21, marginTop: 4 }}>More trade &amp; scenario templates you can edit free.</h3>
+          <div className="tpl-grid" style={{ marginTop: 20 }}>
             {others.map((o) => (
               <Link key={o.slug} className="tpl-card" href={`/${o.slug}`}>
                 <div className="mono">{o.type[0].toUpperCase()}</div>

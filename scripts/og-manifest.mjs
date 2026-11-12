@@ -13,6 +13,9 @@ const CLIENTS = {
   cleaning: "Cedar Park Offices", smallbusiness: "Riverbend Cafe", plumbing: "M. Okafor",
   hvac: "Bright Valley HOA", retail: "Walk-in customer", rent: "Unit 4B — J. Park",
   tutoring: "The Nguyen Family", catering: "Vertex Corp Events",
+  receipt: "Northwind Co.", quote: "Apex Retail Group",
+  contractorestimate: "The Alvarez Residence", rentreceipt: "Apt 4B — Jordan Park",
+  designquote: "Lumen Skincare Co.",
 };
 
 function docFor(scenarioKey, typeKey) {
