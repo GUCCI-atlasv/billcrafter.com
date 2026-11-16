@@ -1,17 +1,14 @@
-// Shared authorship + citation blocks for content pages (category hubs and the
-// vertical landing pages). Three GEO levers live here:
-//  - Byline: visible author attribution + a machine-readable <time> (E-E-A-T,
-//    author signals, freshness).
-//  - Sources: outbound citations to authoritative primary sources with one
-//    short, attributed quotation — the single strongest AI-visibility lever.
+// Shared organizational maintenance byline + official source citations.
 import Link from "next/link";
-import { AUTHOR, PUBLISHER, SITE_UPDATED, fmtDate } from "@/lib/site";
+import { PUBLISHER, SITE_UPDATED, fmtDate } from "@/lib/site";
 
-export function Byline() {
+export function Byline({ updated = SITE_UPDATED }) {
   return (
     <p className="byline">
-      By <Link href="/about#author">{AUTHOR.name}</Link>, {AUTHOR.role.toLowerCase()} · Published by {PUBLISHER} ·
-      Updated <time dateTime={SITE_UPDATED}>{fmtDate(SITE_UPDATED)}</time>
+      Maintained by <Link href="/about#maintainer">{PUBLISHER}</Link> · Updated{" "}
+      <time dateTime={updated}>{fmtDate(updated)}</time> ·{" "}
+      <Link href="/changelog">Changelog</Link> ·{" "}
+      <Link href="/contact">Report a correction</Link>
     </p>
   );
 }
@@ -48,7 +45,8 @@ export function Sources() {
         <p className="lead" style={{ maxWidth: 720, marginTop: 18 }}>
           Requirements differ by country, but the essentials are consistent: a unique invoice number, the
           seller and the buyer, an itemized description, the amount due, and clear payment terms. Every
-          BillCrafter template is built around those fields. The primary sources we follow are below.
+          BillCrafter template is built around those fields. The primary sources we reference are below (reviewed{" "}
+          <time dateTime={SITE_UPDATED}>{fmtDate(SITE_UPDATED)}</time>).
         </p>
         <ul className="ref-list">
           {SOURCES.map(([href, title, note]) => (

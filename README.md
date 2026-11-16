@@ -50,8 +50,8 @@ wrangler r2 bucket create billcrafter-assets
 # secrets:
 wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put GOOGLE_CLIENT_SECRET
-wrangler secret put EMAIL_API_KEY
 ```
+> Email sending uses Cloudflare Email Service (`[[send_email]]` binding `EMAIL` in `wrangler.toml`) — onboard `billcrafter.com` under **Compute → Email Service → Email Sending** in the Cloudflare Dashboard.
 
 ## Authentication (implemented — email + password)
 
@@ -97,13 +97,16 @@ Flow: `/api/auth/google` → Google consent → `/api/auth/google/callback` exch
 
 ### Magic-link sign-in (implemented)
 
-`POST /api/auth/magic` creates a single-use token (D1 `magic_tokens`, 15-min TTL) and emails a link via **Resend**; `GET /api/auth/magic/verify` consumes it and signs the user in. Configure:
-```bash
-wrangler secret put EMAIL_API_KEY      # Resend API key
-# optional sender (verified domain), else defaults to login@billcrafter.com:
-# add EMAIL_FROM under [vars] in wrangler.toml
+`POST /api/auth/magic` creates a single-use token (KV + D1 `magic_tokens`, 15-min TTL) and emails a link via **Cloudflare Email Service** (`env.EMAIL`); `GET /api/auth/magic/verify` consumes it and signs the user in. Configure:
+```toml
+# wrangler.toml
+[[send_email]]
+name = "EMAIL"
+
+[vars]
+EMAIL_FROM = "BillCrafter <noreply@billcrafter.com>"
 ```
-Before you set `EMAIL_API_KEY`, the endpoint returns a one-time `devLink` in the response so you can test sign-in without email.
+Before you bind `EMAIL` (e.g. under plain `next dev`), the endpoint returns a one-time `devLink` in the response so you can test sign-in without email.
 
 ## Pricing model — free (since Sep 2026)
 
@@ -116,7 +119,7 @@ Apply the migration once: `wrangler d1 execute billcrafter --remote --file=./db/
 
 ## Backend TODO (to go from scaffold → production)
 
-- [x] **OAuth / magic link**: implemented — set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and `EMAIL_API_KEY` (Resend) to activate. (see above)
+- [x] **OAuth / magic link**: implemented — set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` and configure Cloudflare Email Service (`[[send_email]]` binding `EMAIL`) to activate. (see above)
 - [ ] **D1**: apply `db/schema.sql`; wire invoices/clients/items/profile CRUD. (`app/api/invoices`)
 - [ ] **Export quota**: move the counter server-side (`export_usage`), enforce 1 / 10-mo / unlimited. (`app/api/export`)
 - [x] **Billing**: PayPal Subscriptions implemented (`/upgrade` + `app/api/paypal/*`). Stripe remains an optional second provider (`app/api/stripe/webhook` stub).

@@ -159,6 +159,9 @@ export default function MarketingSections({ intro, variant = "full", locale = DE
                 alt="BillCrafter - Create invoices, estimates, and receipts fast with no signup required | BetaList"
                 width={156}
                 height={54}
+                loading="lazy"
+                decoding="async"
+                fetchPriority="low"
                 src="https://betalist.com/badges/featured?id=178792&theme=color"
               />
             </a>

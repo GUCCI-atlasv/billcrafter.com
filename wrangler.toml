@@ -50,11 +50,20 @@ binding = "BROWSER"
 binding = "SESSIONS"
 id = "408b725c56b245e6bbc51e3fb4b86a10"
 
+# --- Email Sending (Cloudflare Email Service) ---
+# Requires billcrafter.com to be onboarded in Cloudflare Dashboard →
+# Compute → Email Service → Email Sending.
+[[send_email]]
+name = "EMAIL"
+
 # --- Public vars (non-secret) ---
 [vars]
 APP_URL = "https://billcrafter.com"
 EMAIL_FROM = "BillCrafter <noreply@billcrafter.com>"
+GCP_LOCATION = "us-central1"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 # --- Secrets (set with: wrangler secret put NAME) ---
+# GCP_SERVICE_ACCOUNT_JSON   (Google Cloud Service Account JSON for Vertex AI Gemini 2.5 Flash OCR)
+# GOOGLE_CLOUD_API_KEY       (Optional fallback API key for local dev / Express mode)
 # GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-# EMAIL_API_KEY   (Resend)

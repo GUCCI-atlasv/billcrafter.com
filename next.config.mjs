@@ -12,6 +12,11 @@ const nextConfig = {
       // /vn (country), matching how we talk about the market (VN).
       { source: "/vi", destination: "/vn", permanent: true },
       { source: "/vi/:path*", destination: "/vn/:path*", permanent: true },
+      // Common Chinese regional aliases -> canonical /zh-Hans
+      { source: "/zh-CN", destination: "/zh-Hans", permanent: true },
+      { source: "/zh-CN/:path*", destination: "/zh-Hans/:path*", permanent: true },
+      { source: "/zh-cn", destination: "/zh-Hans", permanent: true },
+      { source: "/zh-cn/:path*", destination: "/zh-Hans/:path*", permanent: true },
       // Paid plans were retired (Sep 2026) — everything is free with an account.
       { source: "/upgrade", destination: "/signup", permanent: true },
       { source: "/:locale/upgrade", destination: "/signup", permanent: true },

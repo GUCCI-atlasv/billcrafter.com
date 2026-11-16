@@ -12,7 +12,7 @@ export async function GET(request) {
   try {
     const a = await getAdmin(request, env);
     return Response.json(
-      { ok: true, admin: a ? { email: a.email, role: a.role } : null },
+      { ok: true, admin: a ? { email: a.email, role: a.role, authMethod: a.authMethod } : null },
       { headers: { "cache-control": "private, no-store" } },
     );
   } catch (e) {

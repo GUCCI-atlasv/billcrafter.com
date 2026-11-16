@@ -6,12 +6,23 @@ export const dynamic = "force-dynamic";
 
 const clip = (s, n = 300) => (s == null ? null : String(s).slice(0, n));
 
+const ALLOWED_EVENTS = new Set([
+  "visit",
+  "export",
+  "ocr_scan_success",
+  "ocr_sample_try",
+  "export_csv",
+  "export_xlsx",
+  "ocr_to_editor",
+  "sign_up",
+]);
+
 export async function POST(request) {
   const env = await getEnv();
   if (!env?.DB) return Response.json({ ok: false }, { status: 200 }); // never block the client
   let b = {};
   try { b = await request.json(); } catch {}
-  if (b.event !== "visit" && b.event !== "export") return Response.json({ ok: false }, { status: 200 });
+  if (!ALLOWED_EVENTS.has(b.event)) return Response.json({ ok: false }, { status: 200 });
 
   const h = request.headers;
   const ip = h.get("cf-connecting-ip") || h.get("x-real-ip") || (h.get("x-forwarded-for") || "").split(",")[0].trim() || null;

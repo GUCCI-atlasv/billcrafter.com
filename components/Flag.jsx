@@ -212,6 +212,25 @@ export default function Flag({ iso, size = 20 }) {
           })}
         </g>
       </svg>);
+    case "CN":
+      return (<svg {...p}>
+        <rect width="24" height="16" fill="#DE2910" />
+        <g fill="#FFDE00">
+          <polygon points="4.2,2.1 4.82,4.0 6.82,4.0 5.2,5.18 5.82,7.08 4.2,5.9 2.58,7.08 3.2,5.18 1.58,4.0 3.58,4.0" />
+          <circle cx="8.6" cy="2.0" r="0.68" />
+          <circle cx="10.0" cy="3.4" r="0.68" />
+          <circle cx="10.0" cy="5.4" r="0.68" />
+          <circle cx="8.6" cy="6.8" r="0.68" />
+        </g>
+      </svg>);
+    case "PK":
+      return (<svg {...p}>
+        <rect width="24" height="16" fill="#01411C" />
+        <rect width="6" height="16" fill="#fff" />
+        <circle cx="15" cy="8" r="4.3" fill="#fff" />
+        <circle cx="16.2" cy="7.2" r="3.6" fill="#01411C" />
+        <polygon fill="#fff" points="16.8,5.1 17.25,6.45 18.65,6.45 17.52,7.28 17.95,8.62 16.8,7.8 15.65,8.62 16.08,7.28 14.95,6.45 16.35,6.45" />
+      </svg>);
     case "VN":
       return (<svg {...p}>
         <rect width="24" height="16" fill="#DA251D" />

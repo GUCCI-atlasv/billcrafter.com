@@ -19,6 +19,7 @@ export default function ContactForm() {
     try {
       const r = await fetch("/api/contact", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, email, message, website }) });
       if (r.ok) { setDone(true); return; }
+      if (r.status === 429) { setErr("Too many messages sent — please wait a moment or email support@billcrafter.com directly."); return; }
       if (r.status === 503) { setErr("Our form isn’t connected yet — please email support@billcrafter.com directly."); return; }
       setErr("Couldn’t send your message. Please email support@billcrafter.com.");
     } catch { setErr("Couldn’t send. Please email support@billcrafter.com."); }

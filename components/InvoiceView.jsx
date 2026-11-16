@@ -3,6 +3,7 @@
 // what the user designed on screen.
 import { money, computeTotals, sectionSubtotal, currencyDecimals, roundMoney, taxModeOf } from "@/lib/invoice";
 import { docType, t, intlTag, localeTaxLabel, stampLabel } from "@/lib/i18n";
+import { edCopy } from "@/lib/editorI18n";
 
 export default function InvoiceView({ doc, locale = "en" }) {
   const d = doc || {};
@@ -14,6 +15,7 @@ export default function InvoiceView({ doc, locale = "en" }) {
   const docTypeKey = d.type || "invoice";
   const ty = docType(locale, docTypeKey);
   const L = (k) => t(locale, k);
+  const E = edCopy(locale);
   const INTL = intlTag(locale);
   const TAXL = localeTaxLabel(locale);
   const cur = d.currency || "USD";
@@ -32,7 +34,10 @@ export default function InvoiceView({ doc, locale = "en" }) {
   const isReceipt = docTypeKey === "receipt";
   const hasDates = Boolean(f.timesheet || items.some((it) => it.section === undefined && it.date));
   const totalHours = items.reduce((n, it) => it.section === undefined && it.date ? n + (Number(it.qty) || 0) : n, 0);
-  const showBrandFoot = !d.hideBrandFoot || Boolean(d.shareUrl);
+  // Default is branding-free: footer attribution renders only if the user
+  // explicitly opted in (hideBrandFoot === false).
+  const showBrandFootLink = d.hideBrandFoot === false;
+  const showBrandFoot = showBrandFootLink || Boolean(d.shareUrl);
 
   return (
     <div className={"sheet " + (d.tpl || "modern")} style={{ ["--accent"]: d.accent || "#16181C" }}>
@@ -50,7 +55,7 @@ export default function InvoiceView({ doc, locale = "en" }) {
           <div className="metarow"><span>{L("doc.issued")}</span> <span className="metaval">{fmtDMY(f.issueDate)}</span></div>
           <div className="metarow"><span>{ty.d2}</span> <span className="metaval">{fmtDMY(f.dueDate)}</span></div>
           {f.poNo ? <div className="metarow"><span>{L("doc.po")}</span> <span className="metaval">{f.poNo}</span></div> : null}
-          {ty.method && f.payMethod ? <div className="metarow"><span>Method</span> <span className="metaval">{f.payMethod}</span></div> : null}
+          {ty.method && f.payMethod ? <div className="metarow"><span>{L("doc.method")}</span> <span className="metaval">{f.payMethod}</span></div> : null}
         </div>
       </div>
 
@@ -183,12 +188,12 @@ export default function InvoiceView({ doc, locale = "en" }) {
           <div className="dbf-links">
             {d.shareUrl ? (
               <>
-                <span>View online: <a href={d.shareUrl}>{String(d.shareUrl).replace(/^https?:\/\//, "")}</a></span>
-                {!d.hideBrandFoot ? <span className="dbf-sep">·</span> : null}
+                <span>{E.viewOnline} <a href={d.shareUrl}>{String(d.shareUrl).replace(/^https?:\/\//, "")}</a></span>
+                {showBrandFootLink ? <span className="dbf-sep">·</span> : null}
               </>
             ) : null}
-            {!d.hideBrandFoot ? (
-              <a href="https://billcrafter.com">Powered by BillCrafter.com — Free Receipt &amp; Invoice Maker</a>
+            {showBrandFootLink ? (
+              <a href="https://billcrafter.com">{E.poweredBy}</a>
             ) : null}
           </div>
         </div>

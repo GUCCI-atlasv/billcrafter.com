@@ -4,10 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { CURRENCIES, TYPES, ACCENTS, SCENARIOS, CRYPTO, isCrypto, money, computeTotals, sectionSubtotal, nextInvNo, currencyDecimals, roundMoney, taxModeOf } from "@/lib/invoice";
 import { qrSvg } from "@/lib/qr";
-import { docType, t, intlTag, localeCurrency, localeTaxLabel, stampLabel, STAMP_KEYS } from "@/lib/i18n";
+import { docType, t, intlTag, localeCurrency, localeTaxLabel, localeTaxPresets, stampLabel, STAMP_KEYS } from "@/lib/i18n";
+import { edCopy } from "@/lib/editorI18n";
+import { QUOTA_POLICY } from "@/lib/quotaConfig";
 import { getUser as readUser, setUser as persistUser, clearUser } from "@/lib/auth";
 import { listKind } from "@/lib/api";
 import { readLogoFile, readPhotoFile } from "@/lib/logo";
+import { trackEvent } from "@/lib/analytics";
 import ReviewCta from "@/components/ReviewCta";
 import SignatureModal from "@/components/SignatureModal";
 
@@ -16,11 +19,11 @@ import SignatureModal from "@/components/SignatureModal";
 // UI early.
 //
 //   no account -> 1 PDF export per day (counted by IP), no status stamps
-//   free account -> unlimited exports and every feature
+//   free account -> unlimited PDF exports and billing tools
 //
 // Print stays ungated on purpose — it's a browser function, and blocking it
 // would only teach people to screenshot the invoice.
-const ANON_DAILY_LIMIT = 1;
+const ANON_DAILY_LIMIT = QUOTA_POLICY.pdfGuestDaily;
 const utcDay = () => new Date().toISOString().slice(0, 10);
 const blankItem = () => ({ desc: "", detail: "", qty: 1, rate: 0, tax: true });
 // A timesheet row is an ordinary line item that also carries a date: qty is
@@ -70,6 +73,8 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [usage, setUsage] = useState({ day: "", anon: 0 });
+  const [usageReady, setUsageReady] = useState(false);
+  const [exportBusy, setExportBusy] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [thanksOpen, setThanksOpen] = useState(false);
   const [emailTo, setEmailTo] = useState("");
@@ -80,13 +85,15 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   const [shareUrl, setShareUrl] = useState("");
   const [sharing, setSharing] = useState(false);
   const [signOpen, setSignOpen] = useState(false);
-  const [hideBrandFoot, setHideBrandFoot] = useState(false);
+  // Default to branding-free PDFs to match the "no watermark / no branding" promise.
+  const [hideBrandFoot, setHideBrandFoot] = useState(true);
   // Local anti-loss draft state: tracks distinct fields/rows edited in this
   // session so we surface the subtle "Auto-saved locally" nudge once >3 lines
   // have been typed, and persist/restore in-progress drafts across refreshes.
   const [touchedCount, setTouchedCount] = useState(0);
   const [draftRestored, setDraftRestored] = useState(false);
   const [draftBannerOff, setDraftBannerOff] = useState(false);
+  const [ocrImportedBanner, setOcrImportedBanner] = useState(null); // { mode, count } | null
   const touchedKeysRef = useRef(new Set());
   const readyForAutosaveRef = useRef(false);
   // The signature is part of the document, not a stamp applied to the finished
@@ -97,6 +104,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   const [savedItems, setSavedItems] = useState([]);
   const [savedProfiles, setSavedProfiles] = useState([]);
   const sheetRef = useRef(null);
+  const lastFocusRef = useRef(null);
   const idRef = useRef("inv_" + Date.now());
   // Set when the user explicitly removes the logo from this draft. Two things
   // depend on it: the auto-apply-profile effect must not put the logo straight
@@ -114,8 +122,10 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   // existing `ty.*` call site stays unchanged.
   const ty = docType(locale, type);
   const L = (k) => t(locale, k);
+  const E = edCopy(locale);
   const INTL = intlTag(locale);
   const TAXL = localeTaxLabel(locale);
+  const taxPresets = localeTaxPresets(locale);
   const fmt = (n) => money(n, currency, INTL);
   // The currency decides the precision every figure on this document is rounded
   // to — 2 for most, 0 for JPY/KRW/IDR/VND, which have no minor unit. Switching
@@ -206,8 +216,24 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     try { const us = JSON.parse(localStorage.getItem("bc_usage")); if (us) setUsage(us); } catch {}
     syncUsage();  // server is the source of truth (anonymous exports are counted by IP)
 
+    let restoredFromOcr = false;
+    if (!initialSnapshot) {
+      try {
+        const rawOcr = sessionStorage.getItem("bc_ocr_handoff");
+        if (rawOcr) {
+          sessionStorage.removeItem("bc_ocr_handoff");
+          const parsedOcr = JSON.parse(rawOcr);
+          if (parsedOcr?.snapshot && Array.isArray(parsedOcr.snapshot.items)) {
+            loadSnap(parsedOcr.snapshot);
+            setOcrImportedBanner({ mode: parsedOcr.mode || "recreate", count: parsedOcr.count || 1 });
+            restoredFromOcr = true;
+          }
+        }
+      } catch {}
+    }
+
     let restoredFromLocal = false;
-    if (!initialSnapshot && !hasQueryOverride) {
+    if (!initialSnapshot && !hasQueryOverride && !restoredFromOcr) {
       try {
         const rawDraft = localStorage.getItem(draftStorageKey());
         if (rawDraft) {
@@ -236,7 +262,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
         // Save updates it (works even if this browser never created it).
         try { const m = JSON.parse(localStorage.getItem("bc_srvmap") || "{}"); m[initialSnapshot.id] = initialSnapshot._id; localStorage.setItem("bc_srvmap", JSON.stringify(m)); } catch {}
       }
-    } else if (!restoredFromLocal) {
+    } else if (!restoredFromLocal && !restoredFromOcr) {
       setTypeState(effType);
       setStamp(effStamp);
       const scenObj = SCENARIOS[effScen];
@@ -259,15 +285,28 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     }
     // Enable user-edit tracking only after initial hydration/scenario setup settles.
     const tmr = setTimeout(() => { readyForAutosaveRef.current = true; }, 80);
+    // Allow below-the-fold example cards on landing pages to load directly into the editor
+    const onLoadExample = (ev) => {
+      const snap = ev?.detail?.snapshot;
+      if (!snap || !Array.isArray(snap.items)) return;
+      loadSnap(snap);
+      trackEvent("editor_start", { doc_type: snap.type || effType, source: "example" });
+      const anchor = document.getElementById("editor") || document.querySelector(".tool");
+      if (anchor) anchor.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    window.addEventListener("bc:load-example", onLoadExample);
     // one visitor beacon per browser session
     try { if (!sessionStorage.getItem("bc_visit")) { sessionStorage.setItem("bc_visit", "1"); track("visit"); } } catch {}
-    return () => clearTimeout(tmr);
+    return () => {
+      clearTimeout(tmr);
+      window.removeEventListener("bc:load-example", onLoadExample);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function flash(m) { setSavedMsg(m); clearTimeout(window._bcst); window._bcst = setTimeout(() => setSavedMsg(""), 1600); }
 
-  // ---- analytics beacon (visitor IP + template usage; server stamps IP/country) ----
+  // ---- analytics beacon (visitor IP + template usage + GA4 key events) ----
   function track(event, extra) {
     try {
       fetch("/api/track", {
@@ -276,7 +315,19 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       }).catch(() => {});
     } catch {}
   }
-  function trackExport(format) { track("export", { template: tpl, docType: type, format }); }
+  function trackExport(format) {
+    const gaName = format === "email" ? "email_doc" : "generate_pdf";
+    trackEvent(
+      gaName,
+      {
+        doc_type: type,
+        template_id: tpl,
+        from_ocr: Boolean(ocrImportedBanner),
+        signed_in: Boolean(user),
+      },
+      { event: "export", template: tpl, docType: type, format }
+    );
+  }
 
   // ---- scenarios / templates ----
   function applyScenario(key, targetType = type, explicitStamp) {
@@ -363,9 +414,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   }
 
   const TEMPLATES = [
-    ["blank", "Blank"], ["freelance", "Freelance"], ["contractor", "Contractor"],
-    ["consulting", "Consulting"], ["photography", "Photography"], ["cleaning", "Cleaning"],
-    ["smallbusiness", "Small business"], ["receipt", "Receipt"],
+    ["blank", E.scenarios.blank], ["freelance", E.scenarios.freelance], ["contractor", E.scenarios.contractor],
+    ["consulting", E.scenarios.consulting], ["photography", E.scenarios.photography], ["cleaning", E.scenarios.cleaning],
+    ["smallbusiness", E.scenarios.smallbusiness], ["receipt", docType(locale, "receipt").word],
   ];
 
   // ---- type ----
@@ -466,7 +517,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   // ---- persistence (mock cloud = localStorage) ----
   function snapshot() {
     return { id: idRef.current, type, activeScenario, tpl, accent, currency, logo, items, adj, f, stamp, sig, photos, schedule, taxMode,
-      shareUrl, hideBrandFoot,
+      shareUrl, hideBrandFoot, brandPrefVersion: 2,
       invNo: f.invNo, client: f.toName || "(no client)", total: totals.total, date: f.issueDate, savedAt: Date.now() };
   }
   // Auto-save the working draft to browser localStorage whenever the user edits
@@ -722,7 +773,13 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     setTaxMode(taxModeOf(snap));
     setLogo(snap.logo || null); setStamp(snap.stamp || ""); setSig(snap.sig || null);
     if (snap.shareUrl !== undefined) setShareUrl(snap.shareUrl || "");
-    if (snap.hideBrandFoot !== undefined) setHideBrandFoot(!!snap.hideBrandFoot);
+    if (snap.brandPrefVersion === 2 && snap.hideBrandFoot !== undefined) {
+      setHideBrandFoot(!!snap.hideBrandFoot);
+    } else if (snap.hideBrandFoot === true) {
+      setHideBrandFoot(true);
+    } else {
+      setHideBrandFoot(true);
+    }
     setPhotos(Array.isArray(snap.photos) ? snap.photos.map((p) => ({ ...p })) : []);
     setSchedule(Array.isArray(snap.schedule) ? snap.schedule.map((r) => ({ ...r })) : []);
     if (Array.isArray(snap.items) && snap.items.length) setItems(snap.items.map((i) => ({ ...i })));
@@ -777,7 +834,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     finally { setAuthBusy(false); }
   }
   async function signOut() {
-    if (!confirm("Sign out?")) return;
+    if (!confirm(E.signOutConfirm)) return;
     try { await fetch("/api/auth/logout", { method: "POST" }); } catch {}
     clearUser(); setUser(null); setDrawerOpen(false);
     setStamp("");   // status stamps need an account
@@ -796,10 +853,14 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   }
   // Pull the authoritative anonymous counter from the server (D1, keyed by IP).
   function syncUsage() {
-    fetch("/api/usage").then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (!d || !d.ok || d.plan !== "anon") return;
-      setUsage(storeUsage({ day: d.day, anon: d.count }));
-    }).catch(() => {});
+    fetch("/api/usage")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || !d.ok) return;
+        if (d.plan === "anon") setUsage(storeUsage({ day: d.day, anon: d.count }));
+      })
+      .catch(() => {})
+      .finally(() => setUsageReady(true));
   }
   // Record an export done by the client-side renderer. Accounts are unlimited;
   // the server still logs the export for stats.
@@ -811,7 +872,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     fetch("/api/usage", { method: "POST" }).then((r) => (r.ok ? r.json() : null)).then((d) => {
       if (!d || !d.ok || d.plan !== "anon") return;
       setUsage(storeUsage({ day: d.day, anon: d.count }));
-      if (d.remaining === 0) flash("Today's free export used — sign up free for unlimited");
+      if (d.remaining === 0) flash(E.usedTodayFlash);
     }).catch(() => {});
   }
   // Bundled, not fetched. Exporting used to depend on cdnjs.cloudflare.com being
@@ -1001,7 +1062,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
   }
   function gateExport() {
     if (remaining() > 0) return true;
-    openAuth("You've used today's free export — sign up free for unlimited exports");
+    openAuth(E.quotaGateAuth);
     return false;
   }
   // Make one path segment safe without destroying non-Latin names. The old rule
@@ -1028,15 +1089,20 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     const parts = [date, safePart(f.fromName), safePart(f.invNo, 40)].filter(Boolean);
     return parts.join("_") || "invoice";
   }
-  // Show the review prompt only on the first download of the day — so someone
-  // exporting several invoices in a row isn't nagged each time.
-  function firstDownloadToday() {
+  // Lightweight review invitation (R11): shown only on/after the 3rd completed
+  // task and at most once every 30 days, regardless of satisfaction.
+  function shouldShowReviewNudge() {
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      if (localStorage.getItem("bc_review_prompt_day") === today) return false;
-      localStorage.setItem("bc_review_prompt_day", today);
+      const count = Number(localStorage.getItem("bc_completed_tasks") || 0) + 1;
+      localStorage.setItem("bc_completed_tasks", String(count));
+      if (count < 3) return false;
+      const last = Number(localStorage.getItem("bc_review_last_at") || 0);
+      const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+      if (Date.now() - last < THIRTY_DAYS) return false;
+      localStorage.setItem("bc_review_last_at", String(Date.now()));
+      return true;
     } catch {}
-    return true;
+    return false;
   }
   // PDF is the only export format. Word (.doc) and Excel (.xls) were HTML files
   // wearing an Office extension: they opened with a security warning, reflowed
@@ -1071,54 +1137,52 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     } catch { return { ok: false, counted: false }; }
   }
   async function doExport() {
+    if (exportBusy) return;
     if (!gateExport()) return;
+    setExportBusy(true);
     // Server first: it prints with the browser's own engine, so the output is
     // vector text at the right size in the right place. The client renderer
     // below re-implements layout and is only the fallback now.
     let serverCounted = false;
     try {
-      const s = await serverExport();
-      serverCounted = !!s.counted;
-      if (s.quota) {
-        // The server says today's anonymous export is already used — don't
-        // route around that with the client renderer.
-        syncUsage();
-        openAuth("You've used today's free export — sign up free for unlimited exports");
-        return;
+      try {
+        const s = await serverExport();
+        serverCounted = !!s.counted;
+        if (s.quota) {
+          syncUsage();
+          openAuth(E.quotaGateAuth);
+          return;
+        }
+        if (s.ok) {
+          if (user) doSaveInvoice();
+          syncUsage(); trackExport("pdf");
+          if (shouldShowReviewNudge()) setThanksOpen(true);
+          else flash(E.thanksTitle(ty.word.toLowerCase()));
+          return;
+        }
+      } catch { /* fall through to the client renderer */ }
+      try {
+        await prepareCapture();
+        await window.html2pdf().set(pdfOptions(fileBase() + ".pdf")).from(sheetRef.current).save();
+        if (user) doSaveInvoice(); // exports show up in the dashboard + activity
+        if (serverCounted) syncUsage(); else bumpUsage();
+        trackExport("pdf");
+        if (shouldShowReviewNudge()) setThanksOpen(true);
+        else flash(E.thanksTitle(ty.word.toLowerCase()));
+      } catch (err) {
+        console.error("[BillCrafter] PDF export failed:", err);
+        const code = (err && err.message) || "unknown";
+        const unstyled = code === "export_unstyled";
+        const msg = unstyled
+          ? "Your PDF couldn't be generated correctly, so it wasn't downloaded — sending it would have produced a broken invoice. Please check your connection and try again."
+          : "Your PDF couldn't be generated, so it wasn't downloaded. Please try again.";
+        if (confirm(msg + "\n\n(" + String(code).slice(0, 80) + ")\n\nOpen the print dialog instead? You can save as PDF from there.")) window.print();
+      } finally {
+        document.body.classList.remove("exporting");
       }
-      if (s.ok) {
-        if (user) doSaveInvoice();
-        // The server already moved the counter; re-read it rather than adding
-        // a second one locally.
-        syncUsage(); trackExport("pdf");
-        if (firstDownloadToday()) setThanksOpen(true);
-        return;
-      }
-    } catch { /* fall through to the client renderer */ }
-    try {
-      await prepareCapture();
-      await window.html2pdf().set(pdfOptions(fileBase() + ".pdf")).from(sheetRef.current).save();
-      if (user) doSaveInvoice(); // exports show up in the dashboard + activity
-      if (serverCounted) syncUsage(); else bumpUsage();
-      trackExport("pdf");
-      if (firstDownloadToday()) setThanksOpen(true); // confirm download + invite a review, once/day
-    } catch (err) {
-      // Never let a failed export look like a finished one. The old behaviour
-      // opened the print dialog with no explanation, which reads as a glitch
-      // rather than "your PDF was not created".
-      // Say WHICH failure this was. The old message collapsed a blocked
-      // stylesheet, a canvas the browser refused to allocate and a library that
-      // never loaded into one sentence, so every report came back as "the
-      // download is weird" and had to be diagnosed from scratch.
-      console.error("[BillCrafter] PDF export failed:", err);
-      const code = (err && err.message) || "unknown";
-      const unstyled = code === "export_unstyled";
-      const msg = unstyled
-        ? "Your PDF couldn't be generated correctly, so it wasn't downloaded — sending it would have produced a broken invoice. Please check your connection and try again."
-        : "Your PDF couldn't be generated, so it wasn't downloaded. Please try again.";
-      if (confirm(msg + "\n\n(" + String(code).slice(0, 80) + ")\n\nOpen the print dialog instead? You can save as PDF from there.")) window.print();
+    } finally {
+      setExportBusy(false);
     }
-    finally { document.body.classList.remove("exporting"); }
   }
   // ---- share link + view tracking (free with an account) ----
   async function doShare() {
@@ -1141,7 +1205,10 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     finally { setSharing(false); }
   }
 
-  function doPrint() { window.print(); }
+  function doPrint() {
+    trackEvent("print_doc", { doc_type: type });
+    window.print();
+  }
 
   // Render the current sheet to a base64 PDF for the signing flow. Same pipeline
   // as Download, minus the save-to-disk step.
@@ -1195,7 +1262,8 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
     setEmailOpen(true);
   }
   async function sendEmail() {
-    if (!/.+@.+\..+/.test(emailTo.trim())) { alert("Enter a valid recipient email."); return; }
+    if (sending) return;
+    if (!/.+@.+\..+/.test(emailTo.trim())) { alert(E.emailInvalidTo); return; }
     setSending(true);
     try {
       await prepareCapture();
@@ -1203,15 +1271,41 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
       document.body.classList.remove("exporting");
       const base64 = (dataUri.split(",")[1]) || "";
       const r = await fetch("/api/send-invoice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: emailTo.trim(), subject: emailSubject, message: emailMsg, filename: fileBase() + ".pdf", pdfBase64: base64 }) });
-      if (r.ok) { doSaveInvoice(); bumpUsage(); trackExport("email"); setEmailOpen(false); flash("Invoice emailed"); }
-      else if (r.status === 401) { setEmailOpen(false); openAuth("Sign in to email invoices"); }
-      else if (r.status === 503) { alert("Email isn’t configured yet on the server."); }
-      else { alert("Couldn’t send. Please try again."); }
+      if (r.ok) { doSaveInvoice(); bumpUsage(); trackExport("email"); setEmailOpen(false); flash(E.emailSubmitted); }
+      else if (r.status === 401) { setEmailOpen(false); openAuth(E.myInvAuth); }
+      else if (r.status === 429) {
+        const d = await r.json().catch(() => ({}));
+        alert(d?.error === "daily_limit_exceeded" ? E.emailDailyCap : E.emailRateCap);
+      }
+      else if (r.status === 503) { alert(E.emailUnavailable); }
+      else { alert(E.emailSendFailed); }
     } catch {
       document.body.classList.remove("exporting");
-      alert("Couldn’t generate or send. Please try again.");
+      alert(E.emailSendFailed);
     } finally { setSending(false); }
   }
+
+  const anyModalOpen = authOpen || drawerOpen || emailOpen || thanksOpen || signOpen;
+  const prevAnyModalRef = useRef(false);
+  useEffect(() => {
+    if (anyModalOpen && !prevAnyModalRef.current && typeof document !== "undefined") {
+      lastFocusRef.current = document.activeElement;
+    } else if (!anyModalOpen && prevAnyModalRef.current) {
+      try { lastFocusRef.current?.focus?.(); } catch {}
+    }
+    prevAnyModalRef.current = anyModalOpen;
+  }, [anyModalOpen]);
+
+  useEffect(() => {
+    if (!(authOpen || drawerOpen || emailOpen || thanksOpen)) return;
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        setAuthOpen(false); setDrawerOpen(false); setEmailOpen(false); setThanksOpen(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [authOpen, drawerOpen, emailOpen, thanksOpen]);
 
   const remDisplay = remaining();
   const sheetStyle = { ["--accent"]: accent };
@@ -1230,31 +1324,51 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
         <div className="tool-grid">
           {/* EDITOR (WYSIWYG) */}
           <div className="editor-pane">
+            {ocrImportedBanner ? (
+              <div className="autosave-bar print-hide" role="status">
+                <div className="ab-msg">
+                  <span className="ab-dot" aria-hidden="true" />
+                  <span>
+                    {ocrImportedBanner.mode === "bill_expenses"
+                      ? E.ocrImportedBillExpenses(ocrImportedBanner.count)
+                      : E.ocrImportedSingle}
+                  </span>
+                </div>
+                <div className="ab-acts">
+                  <button
+                    type="button"
+                    className="ab-x"
+                    aria-label="Dismiss OCR import notice"
+                    onClick={() => setOcrImportedBanner(null)}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {showAutosaveBanner ? (
               <div className="autosave-bar print-hide" role="status">
                 <div className="ab-msg">
                   <span className="ab-dot" aria-hidden="true" />
                   <span>
-                    {draftRestored
-                      ? "Draft restored from your browser · Sign up free to sync & edit on any device"
-                      : "Auto-saved locally in your browser · Create a free account to continue editing on any device"}
+                    {draftRestored ? E.draftRestored : E.autoSavedLocally}
                   </span>
                 </div>
                 <div className="ab-acts">
                   {draftRestored ? (
-                    <button type="button" className="ab-reset" onClick={resetLocalDraft}>Reset</button>
+                    <button type="button" className="ab-reset" onClick={resetLocalDraft}>{E.reset}</button>
                   ) : null}
                   <button
                     type="button"
                     className="ab-cta"
-                    onClick={() => openAuth("Create a free account — sync & edit your drafts on any device")}
+                    onClick={() => openAuth(E.syncDraftAuth)}
                   >
-                    Sign up free →
+                    {E.signUpFreeCta}
                   </button>
                   <button
                     type="button"
                     className="ab-x"
-                    aria-label="Dismiss notice"
+                    aria-label={E.dismiss}
                     onClick={() => setDraftBannerOff(true)}
                   >
                     ×
@@ -1279,32 +1393,32 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                       print paths hide the button. */}
                   <div className="logo-wrap">
                     <label className="logo-drop">
-                      {logo ? <img src={logo} alt="logo" /> : <span className="logo-ph">Add logo (optional)</span>}
+                      {logo ? <img src={logo} alt="logo" /> : <span className="logo-ph">{E.addLogo}</span>}
                       <input type="file" accept="image/*" style={{ display: "none" }} onChange={onLogo} />
                     </label>
                     {logo ? (
                       <button type="button" className="logo-x" onClick={removeLogo}
-                        title="Remove logo" aria-label="Remove logo">×</button>
+                        title={E.remove} aria-label={E.remove}>×</button>
                     ) : null}
                   </div>
-                  <input className="se biz" aria-label="Your business name" value={f.fromName} onChange={(e) => setField("fromName", e.target.value)} placeholder="Your business name" />
-                  <textarea className="se dets print-hide" rows={2} value={f.fromDetails} onChange={(e) => setField("fromDetails", e.target.value)} placeholder="Address, email, phone, Tax ID (optional)" />
+                  <input className="se biz" aria-label={E.bizName} value={f.fromName} onChange={(e) => setField("fromName", e.target.value)} placeholder={E.bizName} />
+                  <textarea className="se dets print-hide" rows={2} value={f.fromDetails} onChange={(e) => setField("fromDetails", e.target.value)} placeholder={E.bizDetails} />
                   <div className="se dets se-print print-only">{f.fromDetails}</div>
                 </div>
                 <div className="inv-meta">
                   <div className="inv-word">{ty.word}</div>
-                  <div className="metarow"><span>#</span><input className="se print-hide" aria-label="Document number" value={f.invNo} onChange={(e) => setField("invNo", e.target.value)} /><span className="metaval print-only">{f.invNo}</span></div>
-                  <div className="metarow"><span>{L("doc.issued")}</span><input className="se print-hide" type="date" aria-label="Issue date" value={f.issueDate} onChange={(e) => setField("issueDate", e.target.value)} /><span className="metaval print-only">{fmtDMY(f.issueDate)}</span></div>
+                  <div className="metarow"><span>{L("doc.no")}</span><input className="se print-hide" aria-label={L("doc.no")} value={f.invNo} onChange={(e) => setField("invNo", e.target.value)} /><span className="metaval print-only">{f.invNo}</span></div>
+                  <div className="metarow"><span>{L("doc.issued")}</span><input className="se print-hide" type="date" aria-label={L("doc.issued")} value={f.issueDate} onChange={(e) => setField("issueDate", e.target.value)} /><span className="metaval print-only">{fmtDMY(f.issueDate)}</span></div>
                   <div className="metarow"><span>{ty.d2}</span><input className="se print-hide" type="date" aria-label={ty.d2} value={f.dueDate} onChange={(e) => setField("dueDate", e.target.value)} /><span className="metaval print-only">{fmtDMY(f.dueDate)}</span></div>
-                  <div className={"metarow hide-empty-print" + (f.poNo ? "" : " is-empty")}><span>PO</span><input className="se print-hide" aria-label="PO number" value={f.poNo} onChange={(e) => setField("poNo", e.target.value)} placeholder="optional" />{f.poNo ? <span className="metaval print-only">{f.poNo}</span> : null}</div>
-                  {ty.method && <div className={"metarow hide-empty-print" + (f.payMethod ? "" : " is-empty")}><span>Method</span><input className="se print-hide" aria-label="Payment method" value={f.payMethod} onChange={(e) => setField("payMethod", e.target.value)} placeholder="Card / Cash / Transfer" />{f.payMethod ? <span className="metaval print-only">{f.payMethod}</span> : null}</div>}
+                  <div className={"metarow hide-empty-print" + (f.poNo ? "" : " is-empty")}><span>{L("doc.po")}</span><input className="se print-hide" aria-label={L("doc.po")} value={f.poNo} onChange={(e) => setField("poNo", e.target.value)} placeholder={E.poPh} />{f.poNo ? <span className="metaval print-only">{f.poNo}</span> : null}</div>
+                  {ty.method && <div className={"metarow hide-empty-print" + (f.payMethod ? "" : " is-empty")}><span>{L("doc.method")}</span><input className="se print-hide" aria-label={L("doc.method")} value={f.payMethod} onChange={(e) => setField("payMethod", e.target.value)} placeholder={E.payMethodPh} />{f.payMethod ? <span className="metaval print-only">{f.payMethod}</span> : null}</div>}
                 </div>
               </div>
 
               <div className="billto">
                 <div className="tag">{ty.party}</div>
-                <input className="se cli" aria-label="Client or company name" value={f.toName} onChange={(e) => setField("toName", e.target.value)} placeholder="Client / company name" />
-                <textarea className="se dets print-hide" rows={2} value={f.toDetails} onChange={(e) => setField("toDetails", e.target.value)} placeholder="Client address, email (optional)" />
+                <input className="se cli" aria-label={E.clientNamePh} value={f.toName} onChange={(e) => setField("toName", e.target.value)} placeholder={E.clientNamePh} />
+                <textarea className="se dets print-hide" rows={2} value={f.toDetails} onChange={(e) => setField("toDetails", e.target.value)} placeholder={E.clientDetailsPh} />
                 <div className="se dets se-print print-only">{f.toDetails}</div>
               </div>
 
@@ -1312,7 +1426,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                   billing address. Optional; disappears from the PDF when empty. */}
               <div className={"jobsite hide-empty-print" + (f.jobAddr ? "" : " is-empty")}>
                 <div className="tag">{L("doc.jobsite")}</div>
-                <textarea className="se dets print-hide" rows={1} value={f.jobAddr} onChange={(e) => setField("jobAddr", e.target.value)} placeholder="Job site / service address (optional)" />
+                <textarea className="se dets print-hide" rows={1} value={f.jobAddr} onChange={(e) => setField("jobAddr", e.target.value)} placeholder={E.jobsitePh} />
                 <div className="se dets se-print print-only">{f.jobAddr}</div>
               </div>
 
@@ -1323,19 +1437,19 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                 <div className="svc-period">
                   <div className="tag">{L("doc.servicePeriod")}</div>
                   <div className="svc-row">
-                    <input className="se svc-date print-hide" type="date" aria-label="Service period start" value={f.svcFrom} onChange={(e) => setField("svcFrom", e.target.value)} />
+                    <input className="se svc-date print-hide" type="date" aria-label={L("doc.servicePeriod")} value={f.svcFrom} onChange={(e) => setField("svcFrom", e.target.value)} />
                     <span className="svc-dash">–</span>
-                    <input className="se svc-date print-hide" type="date" aria-label="Service period end" value={f.svcTo} onChange={(e) => setField("svcTo", e.target.value)} />
+                    <input className="se svc-date print-hide" type="date" aria-label={L("doc.servicePeriod")} value={f.svcTo} onChange={(e) => setField("svcTo", e.target.value)} />
                     <span className="se-print print-only svc-range">{[fmtDMY(f.svcFrom), fmtDMY(f.svcTo)].filter(Boolean).join(" – ")}</span>
                     <span className={"svc-freq-wrap hide-empty-print" + (f.svcFreq ? "" : " is-empty")}>
                       <span className="svc-lb">{L("doc.frequency")}</span>
-                      <input className="se svc-freq print-hide" value={f.svcFreq} onChange={(e) => setField("svcFreq", e.target.value)} placeholder="e.g. Weekly" />
+                      <input className="se svc-freq print-hide" value={f.svcFreq} onChange={(e) => setField("svcFreq", e.target.value)} placeholder={E.freqPh} />
                       {f.svcFreq ? <span className="se-print print-only">{f.svcFreq}</span> : null}
                     </span>
-                    <button type="button" className="del-row svc-x print-hide" title="Remove service period" onClick={() => setF((p) => ({ ...p, svcFrom: "", svcTo: "", svcFreq: "", svcScope: "" }))}>×</button>
+                    <button type="button" className="del-row svc-x print-hide" title={E.remove} onClick={() => setF((p) => ({ ...p, svcFrom: "", svcTo: "", svcFreq: "", svcScope: "" }))}>×</button>
                   </div>
                   <div className={"hide-empty-print" + (f.svcScope ? "" : " is-empty")}>
-                    <textarea className="se dets print-hide" rows={1} value={f.svcScope} onChange={(e) => setField("svcScope", e.target.value)} placeholder="What this period covers (optional)" />
+                    <textarea className="se dets print-hide" rows={1} value={f.svcScope} onChange={(e) => setField("svcScope", e.target.value)} placeholder={E.scopePh} />
                     <div className="se dets se-print print-only">{f.svcScope}</div>
                   </div>
                 </div>
@@ -1357,47 +1471,41 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                     // own subtotal on the right — computed, not typed.
                     <tr key={i} className="sec-row">
                       <td colSpan={hasDates ? 5 : 4} className="sec-cell">
-                        <input className="se sec-name print-hide" value={it.section} onChange={(e) => updItem(i, "section", e.target.value)} placeholder="Section — e.g. Labor" />
+                        <input className="se sec-name print-hide" value={it.section} onChange={(e) => updItem(i, "section", e.target.value)} placeholder={E.sectionPh} />
                         <div className="se sec-name se-print print-only">{it.section}</div>
                       </td>
                       <td className="amount-cell sec-sub">{fmt(sectionSubtotal(items, i, dec))}</td>
-                      <td className="col-act"><button className="del-row" onClick={() => delItem(i)} title="Remove section">×</button></td>
+                      <td className="col-act"><button className="del-row" onClick={() => delItem(i)} title={E.remove}>×</button></td>
                     </tr>
                   ) : (
                     <tr key={i}>
                       {hasDates ? (
                         <td className="col-date">
-                          <input className="se print-hide" type="date" aria-label={`Line ${i + 1} date`} value={it.date || ""} onChange={(e) => updItem(i, "date", e.target.value)} />
+                          <input className="se print-hide" type="date" aria-label={`${L("doc.date")} ${i + 1}`} value={it.date || ""} onChange={(e) => updItem(i, "date", e.target.value)} />
                           <span className="se se-print print-only">{fmtDMY(it.date)}</span>
                         </td>
                       ) : null}
                       <td>
-                        {/* textarea, not input: an <input> can't hold a line break and
-                            never wraps, but the print-only version below is pre-wrap —
-                            so a long description looked like one line while editing and
-                            silently became three in the exported PDF, shifting the whole
-                            table. As auto-growing textareas the row is the same height
-                            on screen and on paper, and Enter inserts a real line break. */}
-                        <textarea className="se print-hide" rows={1} value={it.desc} onChange={(e) => updItem(i, "desc", e.target.value)} placeholder="Item or service" />
-                        <textarea className="se it-detail print-hide" rows={1} value={it.detail} onChange={(e) => updItem(i, "detail", e.target.value)} placeholder="Description (optional)" />
+                        <textarea className="se print-hide" rows={1} value={it.desc} onChange={(e) => updItem(i, "desc", e.target.value)} placeholder={E.itemPh} />
+                        <textarea className="se it-detail print-hide" rows={1} value={it.detail} onChange={(e) => updItem(i, "detail", e.target.value)} placeholder={E.detailPh} />
                         <div className="se se-print print-only">{it.desc}</div>
                         {it.detail ? <div className="se it-detail se-print print-only">{it.detail}</div> : null}
                       </td>
-                      <td className="num"><input className="se" type="number" min="0" step="any" aria-label={`Line ${i + 1} quantity`} value={it.qty} onChange={(e) => updItem(i, "qty", e.target.value)} /></td>
-                      <td className="num"><input className="se" type="number" min="0" step="any" aria-label={`Line ${i + 1} rate`} value={it.rate} onChange={(e) => updItem(i, "rate", e.target.value)} /></td>
-                      <td className="col-tax" style={{ textAlign: "center" }}><input type="checkbox" checked={it.tax} onChange={(e) => updItem(i, "tax", e.target.checked)} title="Taxable" aria-label={`Line ${i + 1} taxable`} /></td>
+                      <td className="num"><input className="se" type="number" min="0" step="any" aria-label={`${L("doc.qty")} ${i + 1}`} value={it.qty} onChange={(e) => updItem(i, "qty", e.target.value)} /></td>
+                      <td className="num"><input className="se" type="number" min="0" step="any" aria-label={`${L("doc.rate")} ${i + 1}`} value={it.rate} onChange={(e) => updItem(i, "rate", e.target.value)} /></td>
+                      <td className="col-tax" style={{ textAlign: "center" }}><input type="checkbox" checked={it.tax} onChange={(e) => updItem(i, "tax", e.target.checked)} title={L("doc.tax")} aria-label={`${L("doc.tax")} ${i + 1}`} /></td>
                       <td className="amount-cell">{fmt(roundMoney((it.qty || 0) * (it.rate || 0), dec))}</td>
-                      <td className="col-act"><button className="del-row" onClick={() => delItem(i)} title="Remove">×</button></td>
+                      <td className="col-act"><button className="del-row" onClick={() => delItem(i)} title={E.remove}>×</button></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
               <div className="add-rows print-hide">
-                <button className="add-row" onClick={hasDates ? addTimeRow : addItem}>+ Add {hasDates ? "time entry" : "line item"}</button>
-                <button className="add-row" onClick={addSection} title="Group lines under a header — Labor, Materials, …">+ Add section{hasSections ? "" : " (Labor / Materials)"}</button>
+                <button className="add-row" onClick={hasDates ? addTimeRow : addItem}>{hasDates ? E.addTimeEntry : E.addLineItem}</button>
+                <button className="add-row" onClick={addSection}>{E.addSection}{hasSections ? "" : E.laborMaterialsHint}</button>
                 {hasDates
-                  ? <button className="add-row" onClick={() => toggleTimesheet(false)} title="Hide the date column and bill by quantity instead">− Timesheet</button>
-                  : <button className="add-row" onClick={() => toggleTimesheet(true)} title="Bill by the hour — adds a date column and totals your hours">+ Timesheet</button>}
+                  ? <button className="add-row" onClick={() => toggleTimesheet(false)}>{E.removeTimesheet}</button>
+                  : <button className="add-row" onClick={() => toggleTimesheet(true)}>{E.addTimesheet}</button>}
               </div>
 
               <div className="totals">
@@ -1405,9 +1513,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                   <tbody>
                     {hasDates && totalHours > 0 ? <tr className="hours-row"><td>{L("doc.totalHours")}</td><td className="num">{Number(totalHours.toFixed(2))}</td></tr> : null}
                     <tr><td>{L("doc.subtotal")}</td><td className="num">{fmt(totals.subtotal)}</td></tr>
-                    {totals.discAmt ? <tr><td>Discount{adj.discType === "pct" ? ` (${adj.discVal}%)` : ""}</td><td className="num">−{fmt(totals.discAmt)}</td></tr> : null}
+                    {totals.discAmt ? <tr><td>{L("doc.discount")}{adj.discType === "pct" ? ` (${adj.discVal}%)` : ""}</td><td className="num">−{fmt(totals.discAmt)}</td></tr> : null}
                     {Number(adj.taxRate) ? <tr><td>{TAXL} ({adj.taxRate}%)</td><td className="num">{fmt(totals.taxAmt)}</td></tr> : null}
-                    {totals.ship ? <tr><td>Shipping / fees</td><td className="num">{fmt(totals.ship)}</td></tr> : null}
+                    {totals.ship ? <tr><td>{E.shippingFees}</td><td className="num">{fmt(totals.ship)}</td></tr> : null}
                     <tr className="grand"><td>{ty.total}</td><td className="num">{fmt(totals.total)}</td></tr>
                     {type !== "receipt" && totals.depositAmt > 0 ? (
                       <tr className="due dep"><td>{L("doc.depositDue")}{adj.depositType === "pct" ? ` (${adj.depositVal}%)` : ""}</td><td className="num">{fmt(totals.depositAmt)}</td></tr>
@@ -1480,7 +1588,7 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                       {schedule.map((row, i) => (
                         <tr key={i}>
                           <td className="ps-label">
-                            <input className="se print-hide" value={row.label} onChange={(e) => updSchedule(i, "label", e.target.value)} placeholder="Milestone — e.g. On completion" />
+                            <input className="se print-hide" value={row.label} onChange={(e) => updSchedule(i, "label", e.target.value)} placeholder={E.milestonePh} />
                             <span className="se-print print-only">{row.label}</span>
                           </td>
                           <td className="ps-due">
@@ -1491,31 +1599,31 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                             <input className="se print-hide" type="number" min="0" step="0.01" aria-label={`Payment ${i + 1} amount`} value={row.amount} onChange={(e) => updSchedule(i, "amount", e.target.value)} placeholder="0.00" />
                             <span className="se-print print-only">{fmt(Number(row.amount) || 0)}</span>
                           </td>
-                          <td className="col-act"><button className="del-row print-hide" onClick={() => delSchedule(i)} title="Remove">×</button></td>
+                          <td className="col-act"><button className="del-row print-hide" onClick={() => delSchedule(i)} title={E.remove}>×</button></td>
                         </tr>
                       ))}
                     </tbody></table>
-                    <button className="add-row print-hide" onClick={addSchedule}>+ Add milestone</button>
+                    <button className="add-row print-hide" onClick={addSchedule}>{E.addMilestone}</button>
                   </div>
                 )}
 
                 <div className="foot-adders print-hide">
                   {!(f.svcFrom || f.svcTo || f.svcFreq || f.svcScope) && (
-                    <button className="add-row" onClick={() => setF((p) => ({ ...p, svcFrom: todayISO(-30), svcTo: todayISO(), svcFreq: "Weekly" }))} title="For recurring work — the period of visits this invoice covers">+ Service period</button>
+                    <button className="add-row" onClick={() => setF((p) => ({ ...p, svcFrom: todayISO(-30), svcTo: todayISO(), svcFreq: "Weekly" }))}>{E.addSvcPeriod}</button>
                   )}
-                  {schedule.length === 0 && <button className="add-row" onClick={addSchedule}>+ Payment schedule</button>}
+                  {schedule.length === 0 && <button className="add-row" onClick={addSchedule}>{E.addPaySched}</button>}
                   {photos.length < MAX_PHOTOS && (
                     <label className="add-row add-photos">
-                      + {photos.length ? "Add more photos" : "Add job photos"}
+                      {photos.length ? E.addMorePhotos : E.addJobPhotos}
                       <input type="file" accept="image/*" multiple style={{ display: "none" }} onChange={onPhotos} />
                     </label>
                   )}
                 </div>
 
                 <span className="tag">{L("doc.payment")}</span>
-                <textarea className="se" rows={1} value={f.payNote} onChange={(e) => setField("payNote", e.target.value)} placeholder="Payment instructions — bank, PayPal, Stripe link (optional)" />
+                <textarea className="se" rows={1} value={f.payNote} onChange={(e) => setField("payNote", e.target.value)} placeholder={E.payNotePh} />
                 <span className="tag" style={{ marginTop: 10 }}>{L("doc.notes")}</span>
-                <textarea className="se" rows={2} value={f.notes} onChange={(e) => setField("notes", e.target.value)} placeholder="Notes or terms (optional)" />
+                <textarea className="se" rows={2} value={f.notes} onChange={(e) => setField("notes", e.target.value)} placeholder={E.notesPh} />
 
                 {/* Job photos — proof of work, at the foot of the document like a
                     completed-job report. Captions print under each photo. */}
@@ -1526,9 +1634,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                       {photos.map((p, i) => (
                         <figure key={i} className="ph">
                           <img src={p.src} alt={p.cap || "Job photo"} />
-                          <input className="se ph-cap print-hide" value={p.cap} onChange={(e) => updPhotoCap(i, e.target.value)} placeholder="Caption (optional)" />
+                          <input className="se ph-cap print-hide" value={p.cap} onChange={(e) => updPhotoCap(i, e.target.value)} placeholder={E.captionPh} />
                           {p.cap ? <figcaption className="ph-cap-print print-only">{p.cap}</figcaption> : null}
-                          <button className="del-row ph-x print-hide" onClick={() => delPhoto(i)} title="Remove photo">×</button>
+                          <button className="del-row ph-x print-hide" onClick={() => delPhoto(i)} title={E.remove}>×</button>
                         </figure>
                       ))}
                     </div>
@@ -1546,24 +1654,26 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                       <span className="sig-block-name">{sig.name}</span>
                       <span className="sig-block-date">{fmtDMY((sig.at || "").slice(0, 10))}</span>
                     </div>
-                    <button type="button" className="sig-block-x print-hide" title="Remove signature" onClick={() => setSig(null)}>×</button>
+                    <button type="button" className="sig-block-x print-hide" title={E.remove} onClick={() => setSig(null)}>×</button>
                   </div>
                 ) : null}
               </div>
 
-              {/* Subtle footer attribution & online verification link on exported PDFs */}
+              {/* Subtle footer attribution & online verification link on exported PDFs.
+                  Attribution is OFF by default to match our no-branding promise; users
+                  can opt in from the side panel. */}
               {(!hideBrandFoot || shareUrl) ? (
                 <div className="doc-brand-foot">
                   <div className="dbf-links">
                     {shareUrl ? (
                       <>
-                        <span>View online: <a href={shareUrl} target="_blank" rel="noopener noreferrer">{shareUrl.replace(/^https?:\/\//, "")}</a></span>
+                        <span>{E.viewOnline} <a href={shareUrl} target="_blank" rel="noopener noreferrer">{shareUrl.replace(/^https?:\/\//, "")}</a></span>
                         {!hideBrandFoot ? <span className="dbf-sep">·</span> : null}
                       </>
                     ) : null}
                     {!hideBrandFoot ? (
                       <a href="https://billcrafter.com" target="_blank" rel="noopener noreferrer">
-                        Powered by BillCrafter.com — Free Receipt &amp; Invoice Maker
+                        {E.poweredBy}
                       </a>
                     ) : null}
                   </div>
@@ -1571,15 +1681,9 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
                     <button
                       type="button"
                       className="dbf-toggle print-hide"
-                      onClick={() => {
-                        if (!user) {
-                          openAuth("Sign up free to remove the footer link & unlock unlimited PDF exports");
-                          return;
-                        }
-                        setHideBrandFoot(true);
-                      }}
+                      onClick={() => setHideBrandFoot(true)}
                     >
-                      Remove
+                      {E.remove}
                     </button>
                   ) : null}
                 </div>
@@ -1590,65 +1694,67 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
           {/* SIDE PANEL */}
           <aside className="side-panel">
             <div className="sp-actions">
-              <button className="btn btn-solid btn-block" onClick={doExport}>Download PDF</button>
+              <button className="btn btn-solid btn-block" onClick={doExport} disabled={exportBusy}>{exportBusy ? E.exportingPdf : L("ed.downloadPdf")}</button>
               {user ? (
                 <>
                   {/* Logged-in: full toolbox. PDF is the one export format — print covers paper. */}
-                  <button className="btn btn-ghost btn-block" onClick={doEmail}>Email invoice</button>
-                  <button className="btn btn-ghost btn-block" onClick={doSign}>Sign &amp; save</button>
-                  <button className="btn btn-ghost btn-block" onClick={doShare} disabled={sharing}>{sharing ? "Creating link…" : "Share link"}</button>
+                  <button className="btn btn-ghost btn-block" onClick={doEmail}>{E.emailInvoice}</button>
+                  <button className="btn btn-ghost btn-block" onClick={doSign}>{E.signSave}</button>
+                  <button className="btn btn-ghost btn-block" onClick={doShare} disabled={sharing}>{sharing ? E.creatingLink : E.shareLink}</button>
                   {shareUrl ? <div className="share-url" title={shareUrl}><a href={shareUrl} target="_blank" rel="noopener noreferrer">{shareUrl.replace(/^https?:\/\//, "")}</a></div> : null}
-                  <button className="btn btn-ghost btn-block" onClick={doPrint}>Print</button>
+                  <button className="btn btn-ghost btn-block" onClick={doPrint}>{L("ed.print")}</button>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <button className="btn btn-ghost btn-block" onClick={saveInvoice}>Save</button>
-                    <button className="btn btn-ghost btn-block" onClick={() => openAuth("Sign in to see your saved invoices")}>My invoices</button>
+                    <button className="btn btn-ghost btn-block" onClick={saveInvoice}>{L("ed.save")}</button>
+                    <button className="btn btn-ghost btn-block" onClick={() => openAuth(E.myInvAuth)}>{L("ed.myInvoices")}</button>
                   </div>
                 </>
               ) : (
                 <>
                   {/* Anonymous: PDF + Print only. Share/stamps and the rest unlock at sign-up. */}
-                  <button className="btn btn-ghost btn-block" onClick={doPrint}>Print</button>
-                  <button className="btn btn-line btn-block" onClick={() => openAuth("Create a free account — unlimited exports, status stamps, saved invoices, clients and more")}>Sign up free →</button>
+                  <button className="btn btn-ghost btn-block" onClick={doPrint}>{L("ed.print")}</button>
+                  <button className="btn btn-line btn-block" onClick={() => openAuth(E.signupBannerAuth)}>{E.signUpFreeCta}</button>
                 </>
               )}
               <div className="saved">{savedMsg ? "● " + savedMsg : ""}</div>
-              <div className="quota-note">{remDisplay === Infinity ? "Free account · unlimited exports" : `Free exports left today: ${remDisplay} of ${ANON_DAILY_LIMIT} — sign up free for unlimited`}</div>
+              <div className="quota-note" data-nosnippet="">{!usageReady ? E.checkingQuota : remDisplay === Infinity ? E.freeAcctUnlimited : E.freeExportsLeft(remDisplay, ANON_DAILY_LIMIT)}</div>
             </div>
 
             {/* Review nudge — right under the download actions */}
             <div className="sp-review print-hide">
-              <span className="sr-txt">Happy with your {ty.word.toLowerCase()}? A quick review keeps BillCrafter free.</span>
-              <ReviewCta label="Review on Trustpilot" variant="ghost" className="review-cta--block" />
+              <span className="sr-txt">{E.reviewPrompt(ty.word.toLowerCase())}</span>
+              <ReviewCta label={E.reviewTrustpilot} variant="ghost" className="review-cta--block" />
             </div>
 
             {user && (
-              <div className="sp-group"><div className="sp-h">Saved business, clients &amp; items</div>
+              <div className="sp-group"><div className="sp-h">{E.savedGroupTitle}</div>
                 <select value="" onChange={(e) => { insertProfile(e.target.value); e.target.value = ""; }}>
-                  <option value="">{savedProfiles.length ? "Insert business profile…" : "No business profile yet"}</option>
+                  <option value="">{savedProfiles.length ? E.insertProfile : E.noProfileYet}</option>
                   {savedProfiles.map((pr) => <option key={rid(pr)} value={rid(pr)}>{pr.name || "(unnamed)"}</option>)}
                 </select>
                 <select value="" style={{ marginTop: 12 }} onChange={(e) => { insertClient(e.target.value); e.target.value = ""; }}>
-                  <option value="">{savedClients.length ? "Insert saved client…" : "No saved clients yet"}</option>
+                  <option value="">{savedClients.length ? E.insertClient : E.noClientYet}</option>
                   {savedClients.map((c) => <option key={rid(c)} value={rid(c)}>{c.name || "(unnamed)"}</option>)}
                 </select>
                 <select value="" style={{ marginTop: 12 }} onChange={(e) => { insertItem(e.target.value); e.target.value = ""; }}>
-                  <option value="">{savedItems.length ? "Add saved item…" : "No saved items yet"}</option>
+                  <option value="">{savedItems.length ? E.addSavedItem : E.noItemYet}</option>
                   {savedItems.map((it) => <option key={rid(it)} value={rid(it)}>{it.name || "(unnamed)"}{it.rate ? ` — ${money(Number(it.rate) || 0, currency, INTL)}` : ""}</option>)}
                 </select>
-                <div className="muted" style={{ fontSize: 11.5, marginTop: 7 }}>Saved automatically when you download, email, sign or save an invoice. Manage the full list in <Link href="/invoicemanager" style={{ color: "var(--brand-ink)", textDecoration: "underline" }}>your dashboard</Link>.</div>
+                <div className="muted" style={{ fontSize: 11.5, marginTop: 7 }}>{E.manageDashboardPrefix}<Link href="/invoicemanager" style={{ color: "var(--brand-ink)", textDecoration: "underline" }}>{E.manageDashboardLink}</Link>.</div>
               </div>
             )}
 
-            <div className="sp-group"><div className="sp-h">Document type</div>
+            <div className="sp-group"><div className="sp-h">{E.docTypeLabel}</div>
               <div className="sp-presets">
                 {Object.keys(TYPES).map((k) => (
-                  <button key={k} className={"chip" + (type === k ? " active" : "")} onClick={() => changeType(k)}>{TYPES[k].word}</button>
+                  <button key={k} className={"chip" + (type === k ? " active" : "")} onClick={() => changeType(k)}>{docType(locale, k).word}</button>
                 ))}
               </div>
-              <button className="btn btn-ghost btn-block" style={{ marginTop: 8, opacity: ty.next ? 1 : 0.5 }} onClick={convertNext}>{ty.nextLabel}</button>
+              <button className="btn btn-ghost btn-block" style={{ marginTop: 8, opacity: ty.next ? 1 : 0.5 }} onClick={convertNext}>
+                {ty.next ? E.convertLabels[ty.next] : E.convertLabels.final}
+              </button>
             </div>
 
-            <div className="sp-group"><div className="sp-h">Templates</div>
+            <div className="sp-group"><div className="sp-h">{E.templatesLabel}</div>
               <div className="sp-presets">
                 {TEMPLATES.map(([k, label]) => (
                   <button key={k} className={"chip" + (activeScenario === k ? " active" : "")} onClick={() => applyTemplate(k)}>{label}</button>
@@ -1656,28 +1762,28 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
               </div>
             </div>
 
-            <div className="sp-group"><div className="sp-h">Template style</div>
+            <div className="sp-group"><div className="sp-h">{E.tplStyleLabel}</div>
               <select value={tpl} onChange={(e) => setTpl(e.target.value)}>
-                {STYLES.map((t) => (<option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>))}
+                {STYLES.map((st) => (<option key={st} value={st}>{E.styles[st] || (st[0].toUpperCase() + st.slice(1))}</option>))}
               </select>
             </div>
 
             {(user || type === "receipt") && (
             <div className="sp-group">
-              <div className="sp-h">Stamp</div>
+              <div className="sp-h">{E.stampLabel}</div>
               <div className="tpl-select" style={{ flexWrap: "wrap", gap: 6 }}>
-                <button className={"tpl-btn" + (stamp === "" ? " active" : "")} onClick={() => setStamp("")}>None</button>
+                <button className={"tpl-btn" + (stamp === "" ? " active" : "")} onClick={() => setStamp("")}>{E.none}</button>
                 {STAMP_KEYS.map((k) => (
                   <button key={k} className={"tpl-btn" + (stamp === k ? " active" : "")}
                     onClick={() => {
-                      if (!user && !(type === "receipt" && k === "paid")) { openAuth("Sign up free to add PAID / UNPAID stamps"); return; }
+                      if (!user && !(type === "receipt" && k === "paid")) { openAuth(E.stampAuth); return; }
                       setStamp(k);
                     }}>{stampLabel(locale, k)}</button>
                 ))}
               </div>
             </div>
             )}
-            <div className="sp-group"><div className="sp-h">Accent</div>
+            <div className="sp-group"><div className="sp-h">{E.accentLabel}</div>
               <div className="swatches">
                 {ACCENTS.map((c) => (
                   <div key={c} className={"sw" + (accent === c ? " active" : "")} style={{ background: c }} onClick={() => setAccent(c)} />
@@ -1685,120 +1791,163 @@ export default function InvoiceEditor({ initialType = "invoice", initialScenario
               </div>
             </div>
 
-            <div className="sp-group"><div className="sp-h">Currency</div>
-              <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            <div className="sp-group" data-nosnippet=""><div className="sp-h">{E.currencyLabel}</div>
+              <select aria-label={E.currencyLabel} value={currency} onChange={(e) => setCurrency(e.target.value)}>
                 {Object.keys(CURRENCIES).map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
 
-            <div className="sp-group"><div className="sp-h">Tax &amp; adjustments <span style={{ textTransform: "none", letterSpacing: 0, color: "var(--faint)" }}>(optional)</span></div>
-              <div className="sp-row"><label>Tax %</label><input className="sp-input" aria-label="Tax rate (%)" type="number" min="0" step="0.01" value={adj.taxRate} onChange={(e) => setAdj((p) => ({ ...p, taxRate: e.target.value }))} /></div>
-              <div className="sp-row"><label>Discount</label>
-                <input className="sp-input" aria-label="Discount" type="number" min="0" step="0.01" value={adj.discVal} onChange={(e) => setAdj((p) => ({ ...p, discVal: e.target.value }))} />
-                <select style={{ width: 78 }} value={adj.discType} onChange={(e) => setAdj((p) => ({ ...p, discType: e.target.value }))}><option value="pct">%</option><option value="flat">flat</option></select>
+            <div className="sp-group"><div className="sp-h">{E.taxAdjLabel} <span style={{ textTransform: "none", letterSpacing: 0, color: "var(--faint)" }}>{E.optionalTag}</span></div>
+              <div className="sp-row"><label>{E.taxPct}</label><input className="sp-input" aria-label={E.taxPct} type="number" min="0" step="0.01" value={adj.taxRate} onChange={(e) => setAdj((p) => ({ ...p, taxRate: e.target.value }))} /></div>
+              {taxPresets.length > 0 && (
+                <div className="sp-tax-presets" data-nosnippet="">
+                  <span className="sp-tax-lbl">{TAXL}</span>
+                  {taxPresets.map((rate) => {
+                    const active = Number(adj.taxRate) === rate;
+                    return (
+                      <button
+                        key={rate}
+                        type="button"
+                        className={"chip chip-sm" + (active ? " active" : "")}
+                        aria-pressed={active}
+                        onClick={() => setAdj((p) => ({ ...p, taxRate: active ? 0 : rate }))}
+                      >
+                        {rate}%
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="sp-row"><label>{E.discount}</label>
+                <input className="sp-input" aria-label={E.discount} type="number" min="0" step="0.01" value={adj.discVal} onChange={(e) => setAdj((p) => ({ ...p, discVal: e.target.value }))} />
+                <select style={{ width: 78 }} value={adj.discType} onChange={(e) => setAdj((p) => ({ ...p, discType: e.target.value }))}><option value="pct">%</option><option value="flat">{E.flat}</option></select>
               </div>
-              <div className="sp-row"><label>Shipping</label><input className="sp-input" aria-label="Shipping" type="number" min="0" step="0.01" value={adj.shipping} onChange={(e) => setAdj((p) => ({ ...p, shipping: e.target.value }))} /></div>
-              <div className="sp-row"><label>Deposit</label>
-                <input className="sp-input" aria-label="Deposit requested" type="number" min="0" step="0.01" value={adj.depositVal} onChange={(e) => setAdj((p) => ({ ...p, depositVal: e.target.value }))} title="Deposit requested up front — printed as “Deposit due”, doesn’t change the total" />
-                <select style={{ width: 78 }} value={adj.depositType} onChange={(e) => setAdj((p) => ({ ...p, depositType: e.target.value }))}><option value="pct">%</option><option value="flat">flat</option></select>
+              <div className="sp-row"><label>{E.shipping}</label><input className="sp-input" aria-label={E.shipping} type="number" min="0" step="0.01" value={adj.shipping} onChange={(e) => setAdj((p) => ({ ...p, shipping: e.target.value }))} /></div>
+              <div className="sp-row"><label>{E.deposit}</label>
+                <input className="sp-input" aria-label={E.deposit} type="number" min="0" step="0.01" value={adj.depositVal} onChange={(e) => setAdj((p) => ({ ...p, depositVal: e.target.value }))} />
+                <select style={{ width: 78 }} value={adj.depositType} onChange={(e) => setAdj((p) => ({ ...p, depositType: e.target.value }))}><option value="pct">%</option><option value="flat">{E.flat}</option></select>
               </div>
-              <div className="sp-row"><label>Paid</label><input className="sp-input" aria-label="Amount paid" type="number" min="0" step="0.01" value={adj.paid} onChange={(e) => setAdj((p) => ({ ...p, paid: e.target.value }))} /></div>
+              <div className="sp-row"><label>{E.paid}</label><input className="sp-input" aria-label={E.paid} type="number" min="0" step="0.01" value={adj.paid} onChange={(e) => setAdj((p) => ({ ...p, paid: e.target.value }))} /></div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, color: "var(--muted)", cursor: "pointer" }}>
+                <input type="checkbox" checked={!hideBrandFoot} onChange={(e) => setHideBrandFoot(!e.target.checked)} />
+                <span>{E.addBrandFoot}</span>
+              </label>
             </div>
           </aside>
         </div>
       </div>
 
-      {/* AUTH MODAL */}
-      <div className={"overlay" + (authOpen || drawerOpen || emailOpen || thanksOpen ? " show" : "")} onClick={() => { setAuthOpen(false); setDrawerOpen(false); setEmailOpen(false); setThanksOpen(false); }} />
+      {/* AUTH / EMAIL / THANKS / HISTORY MODALS (mounted only when open) */}
+      {(authOpen || drawerOpen || emailOpen || thanksOpen) ? (
+        <div className="overlay show" onClick={() => { setAuthOpen(false); setDrawerOpen(false); setEmailOpen(false); setThanksOpen(false); }} />
+      ) : null}
 
       {/* EMAIL MODAL */}
-      <div className={"modal" + (emailOpen ? " show" : "")}>
-        <button className="x" onClick={() => setEmailOpen(false)}>×</button>
-        <div className="modal-title">Email this {ty.word.toLowerCase()}</div>
-        <p className="sub">Sends a PDF attachment to your client. Replies come back to {user?.email || "you"}.</p>
-        <label style={{ fontSize: 12, color: "var(--muted)" }}>To</label>
-        <input className="sp-input" type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="client@email.com" style={{ margin: "4px 0 10px" }} />
-        <label style={{ fontSize: 12, color: "var(--muted)" }}>Subject</label>
-        <input className="sp-input" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} style={{ margin: "4px 0 10px" }} />
-        <label style={{ fontSize: 12, color: "var(--muted)" }}>Message</label>
-        <textarea className="sp-input" value={emailMsg} onChange={(e) => setEmailMsg(e.target.value)} style={{ minHeight: 90, resize: "vertical", margin: "4px 0 12px" }} />
-        <button className="btn btn-solid btn-block" onClick={sendEmail} disabled={sending} style={{ padding: 11 }}>{sending ? "Sending…" : "Send invoice"}</button>
-      </div>
-      <div className={"modal" + (authOpen ? " show" : "")}>
-        <button className="x" onClick={() => setAuthOpen(false)}>×</button>
-        <div className="modal-title">{authTitle || `Save your ${ty.word.toLowerCase()} — for free`}</div>
-        <p className="sub">Create a free account (or log in) to keep billing without starting over.</p>
-        <div className="benefit">✓ <span>Reuse your business details &amp; client list</span></div>
-        <div className="benefit">✓ <span>History — duplicate past invoices in one click</span></div>
-        <div className="benefit">✓ <span>E-signature — sign an invoice and send the signed PDF</span></div>
-        <div className="benefit">✓ <span>Unlimited PDF exports &amp; status stamps — free, no paid plans</span></div>
-        <div style={{ height: 14 }} />
-        <input className="sp-input" type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="you@email.com" />
-        <input className="sp-input" type="password" value={authPass} onChange={(e) => setAuthPass(e.target.value)} placeholder="Password (6+ characters)" style={{ marginTop: 8 }} onKeyDown={(e) => { if (e.key === "Enter") signInPassword(); }} />
-        <button className="btn btn-solid" onClick={signInPassword} disabled={authBusy}>{authBusy ? "Please wait…" : "Log in / Create account"}</button>
-        <div className="or">or</div>
-        <button className="btn btn-line" onClick={sendMagic} disabled={authBusy}>Email me a magic link</button>
-        <p className="fineprint">New here? We’ll create your account automatically.</p>
-        <p className="fineprint" style={{ marginTop: 10 }}>
-          Prefer the full page? <Link href="/login" style={{ color: "var(--ink)" }}>Log in</Link> / <Link href="/signup" style={{ color: "var(--ink)" }}>Sign up</Link>
-        </p>
-      </div>
+      {emailOpen ? (
+        <div className="modal show" role="dialog" aria-modal="true" aria-label={E.modalEmailTitle(ty.word.toLowerCase())}>
+          <button type="button" className="x" onClick={() => setEmailOpen(false)} aria-label="Close">×</button>
+          <div className="modal-title">{E.modalEmailTitle(ty.word.toLowerCase())}</div>
+          <p className="sub">{E.modalEmailSub(user?.email)}</p>
+          <label style={{ fontSize: 12, color: "var(--muted)" }}>{E.to}</label>
+          <input className="sp-input" type="email" value={emailTo} onChange={(e) => setEmailTo(e.target.value)} placeholder="client@email.com" style={{ margin: "4px 0 10px" }} />
+          <label style={{ fontSize: 12, color: "var(--muted)" }}>{E.subject}</label>
+          <input className="sp-input" value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} style={{ margin: "4px 0 10px" }} />
+          <label style={{ fontSize: 12, color: "var(--muted)" }}>{E.message}</label>
+          <textarea className="sp-input" value={emailMsg} onChange={(e) => setEmailMsg(e.target.value)} style={{ minHeight: 90, resize: "vertical", margin: "4px 0 12px" }} />
+          <button type="button" className="btn btn-solid btn-block" onClick={sendEmail} disabled={sending} style={{ padding: 11 }}>{sending ? E.sending : E.sendInvoice}</button>
+        </div>
+      ) : null}
+
+      {authOpen ? (
+        <div className="modal show" role="dialog" aria-modal="true" aria-label={authTitle || E.authDefaultTitle(ty.word.toLowerCase())}>
+          <button type="button" className="x" onClick={() => setAuthOpen(false)} aria-label="Close">×</button>
+          <div className="modal-title">{authTitle || E.authDefaultTitle(ty.word.toLowerCase())}</div>
+          <p className="sub">{E.authSub}</p>
+          {E.authBenefits.map((b) => (
+            <div className="benefit" key={b}>✓ <span>{b}</span></div>
+          ))}
+          <div style={{ height: 14 }} />
+          <input className="sp-input" type="email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} placeholder="you@email.com" />
+          <input className="sp-input" type="password" value={authPass} onChange={(e) => setAuthPass(e.target.value)} placeholder={E.passwordPh} style={{ marginTop: 8 }} onKeyDown={(e) => { if (e.key === "Enter") signInPassword(); }} />
+          <button type="button" className="btn btn-solid" onClick={signInPassword} disabled={authBusy}>{authBusy ? E.pleaseWait : E.logInCreate}</button>
+          <div className="or">{E.or}</div>
+          <button type="button" className="btn btn-line" onClick={sendMagic} disabled={authBusy}>{E.magicLink}</button>
+          <p className="fineprint">{E.newHere}</p>
+          <p className="fineprint" style={{ marginTop: 10 }}>
+            {E.preferFullPage} <Link href="/login" style={{ color: "var(--ink)" }}>{L("nav.login")}</Link> / <Link href="/signup" style={{ color: "var(--ink)" }}>{L("nav.signup")}</Link>
+          </p>
+        </div>
+      ) : null}
 
       {/* DOWNLOAD-COMPLETE / REVIEW MODAL */}
-      <div className={"modal" + (thanksOpen ? " show" : "")}>
-        <button className="x" onClick={() => setThanksOpen(false)}>×</button>
-        <div className="thanks-emoji">✅</div>
-        <div className="modal-title">Your {ty.word.toLowerCase()} is downloading</div>
-        <p className="sub">Check your downloads folder for <strong>{fileBase()}.pdf</strong>. Thanks for using BillCrafter!</p>
-        <div className="benefit">✓ <span>Enjoying the free invoice generator? A 30-second review means a lot.</span></div>
-        <div className="thanks-review">
-          <ReviewCta label="Leave a review on Trustpilot" variant="solid" className="review-cta--block" />
+      {thanksOpen ? (
+        <div className="modal show" role="dialog" aria-modal="true" aria-label={E.thanksTitle(ty.word.toLowerCase())}>
+          <button type="button" className="x" onClick={() => setThanksOpen(false)} aria-label="Close">×</button>
+          <div className="thanks-emoji">✅</div>
+          <div className="modal-title">{E.thanksTitle(ty.word.toLowerCase())}</div>
+          <p className="sub">{E.thanksSub(fileBase())}</p>
+          <div className="benefit">✓ <span>{E.thanksBenefit}</span></div>
+          <div className="thanks-review">
+            <ReviewCta label={E.leaveReview} variant="solid" className="review-cta--block" />
+          </div>
+          <button type="button" className="link-text" style={{ marginTop: 12 }} onClick={() => setThanksOpen(false)}>{E.maybeLater}</button>
         </div>
-        <button className="link-text" style={{ marginTop: 12 }} onClick={() => setThanksOpen(false)}>Maybe later</button>
-      </div>
+      ) : null}
 
       {/* E-SIGNATURE (registered users) */}
-      <SignatureModal
-        open={signOpen}
-        onClose={() => setSignOpen(false)}
-        defaultName={f.fromName}
-        // "Bill to" is a free-text block, so pull the first address out of it as a
-        // convenience prefill — the signer can always correct it.
-        defaultRecipient={(String(f.toDetails || "").match(/[^\s<>,;]+@[^\s<>,;]+\.[^\s<>,;]{2,}/) || [""])[0]}
-        docType={ty.word}
-        onSubmit={applySignature}
-        onSigned={(d) => {
-          if (d?.emailed?.ok) flash(`Signed · emailed to ${d.emailed.to}`);
-          else if (d?.emailed && !d.emailed.ok) alert("The invoice was signed and saved, but the email couldn't be sent. You can download it and send it manually.");
-          else flash("Signed · added to the invoice");
-        }}
-      />
+      {signOpen ? (
+        <SignatureModal
+          open={signOpen}
+          onClose={() => setSignOpen(false)}
+          defaultName={f.fromName}
+          // "Bill to" is a free-text block, so pull the first address out of it as a
+          // convenience prefill — the signer can always correct it.
+          defaultRecipient={(String(f.toDetails || "").match(/[^\s<>,;]+@[^\s<>,;]+\.[^\s<>,;]{2,}/) || [""])[0]}
+          docType={ty.word}
+          locale={locale}
+          onSubmit={applySignature}
+          onSigned={(d) => {
+            if (d?.emailed?.ok) flash(`${E.emailSubmitted} (${d.emailed.to})`);
+            else if (d?.emailed && !d.emailed.ok) {
+              const msg = d.emailed.error === "daily_limit_exceeded"
+                ? E.emailDailyCap
+                : d.emailed.error === "rate_limited"
+                  ? E.emailRateCap
+                  : E.emailSendFailed;
+              alert(msg);
+            }
+            else flash(E.signSave);
+          }}
+        />
+      ) : null}
 
       {/* HISTORY DRAWER */}
-      <div className={"drawer" + (drawerOpen ? " show" : "")}>
-        <button className="x" onClick={() => setDrawerOpen(false)}>×</button>
-        <div className="modal-title">My invoices</div>
-        <div style={{ color: "var(--muted)", fontSize: 12.5, marginBottom: 8 }}>
-          {user ? <>Signed in as <strong>{user.email}</strong> · Free account · <button className="link-text" onClick={signOut}>sign out</button></> : "Not signed in"}
-        </div>
-        <div>
-          {history.length === 0 ? (
-            <div className="empty">No saved invoices yet.<br />Click Save to store the current one.</div>
-          ) : history.map((x) => (
-            <div className="hist-item" key={x.id}>
-              <div className="top">
-                <span className="no">{x.invNo} {x.id === idRef.current ? <span className="badge">current</span> : null}</span>
-                <span className="amt">{money(x.total, x.currency, INTL)}</span>
+      {drawerOpen ? (
+        <div className="drawer show" role="dialog" aria-modal="true" aria-label={L("ed.myInvoices")}>
+          <button type="button" className="x" onClick={() => setDrawerOpen(false)} aria-label="Close">×</button>
+          <div className="modal-title">{L("ed.myInvoices")}</div>
+          <div style={{ color: "var(--muted)", fontSize: 12.5, marginBottom: 8 }}>
+            {user ? <>{E.signedInAs} <strong>{user.email}</strong> · {E.freeAccount} · <button type="button" className="link-text" onClick={signOut}>{E.signOut}</button></> : E.notSignedIn}
+          </div>
+          <div>
+            {history.length === 0 ? (
+              <div className="empty">{E.noSavedInvoices}<br />{E.clickSaveHint}</div>
+            ) : history.map((x) => (
+              <div className="hist-item" key={x.id}>
+                <div className="top">
+                  <span className="no">{x.invNo} {x.id === idRef.current ? <span className="badge">{E.current}</span> : null}</span>
+                  <span className="amt">{money(x.total, x.currency, INTL)}</span>
+                </div>
+                <div className="cli">{x.client} · {x.date}</div>
+                <div className="acts">
+                  <button type="button" className="btn btn-ghost" onClick={() => openInvoice(x.id)}>{E.open}</button>
+                  <button type="button" className="btn btn-solid" onClick={() => duplicateInvoice(x.id)}>{E.duplicate}</button>
+                </div>
               </div>
-              <div className="cli">{x.client} · {x.date}</div>
-              <div className="acts">
-                <button className="btn btn-ghost" onClick={() => openInvoice(x.id)}>Open</button>
-                <button className="btn btn-solid" onClick={() => duplicateInvoice(x.id)}>Duplicate</button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
     </>
   );
 }

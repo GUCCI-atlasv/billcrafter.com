@@ -17,9 +17,9 @@ export default function VideoSection({ locale = DEFAULT_LOCALE }) {
         <h2>{vid.h2}</h2>
         <p className="lead">{vid.lead}</p>
         <div className="vid-grid">
-          {VIDEOS.map((v, i) => (
+          {VIDEOS.map((v) => (
             <div className="vid-card" key={v.id}>
-              <VideoEmbed video={v} priority={i === 0} />
+              <VideoEmbed video={v} />
               {/* Titles stay in English: these are the actual YouTube titles of
                   English-language videos, so translating them would misname them. */}
               <h3 className="vid-title">

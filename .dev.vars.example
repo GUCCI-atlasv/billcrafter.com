@@ -1,4 +1,9 @@
 # Copy to .dev.vars for local development with wrangler (do NOT commit .dev.vars).
+# Note: email sending uses the Cloudflare Email Service [[send_email]] binding ("EMAIL") in wrangler.toml.
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
-EMAIL_API_KEY=
+# Receipt & Invoice OCR (Google Cloud Vertex AI Service Account JSON or API Key fallback)
+GCP_SERVICE_ACCOUNT_JSON=
+GOOGLE_CLOUD_API_KEY=
+GCP_LOCATION=us-central1
+GEMINI_MODEL=gemini-2.5-flash

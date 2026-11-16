@@ -1,4 +1,4 @@
-import { getEnv, hashPassword, createSession, sessionCookie } from "@/lib/server/auth";
+import { getEnv, hashPassword, createSession, sessionCookie, isBanned, reqClientIp } from "@/lib/server/auth";
 
 export async function POST(request) {
   const { email, password } = await request.json().catch(() => ({}));
@@ -9,6 +9,9 @@ export async function POST(request) {
   if (!env?.DB || !env?.SESSIONS) return Response.json({ ok: false, error: "backend_unavailable" }, { status: 503 });
 
   const em = email.trim().toLowerCase();
+  if (await isBanned(env, { email: em, ip: reqClientIp(request) })) {
+    return Response.json({ ok: false, error: "forbidden" }, { status: 403 });
+  }
   const exists = await env.DB.prepare("SELECT id FROM users WHERE email = ?").bind(em).first();
   if (exists) return Response.json({ ok: false, error: "email_taken" }, { status: 409 });
 

@@ -3,16 +3,10 @@
 // Draw-to-sign modal (registered users). Uses signature_pad for the drawing, then
 // hands the PNG plus the invoice PDF to /api/sign, which embeds and stores them.
 import { useEffect, useRef, useState } from "react";
+import { edCopy } from "@/lib/editorI18n";
 
-// Matches CONSENT_TEXT in app/api/sign/route.js. Shown here and stored verbatim
-// with the signature, so the record always reflects what was actually agreed to.
-const CONSENT_TEXT =
-  "I agree to sign this document electronically and intend this signature to have the " +
-  "same effect as my handwritten signature, to the extent the law that applies to this " +
-  "document allows. I understand that a record of this signature — including the time, " +
-  "my IP address and this consent — will be kept.";
-
-export default function SignatureModal({ open, onClose, defaultName = "", defaultRecipient = "", docType, onSubmit, onSigned }) {
+export default function SignatureModal({ open, onClose, defaultName = "", defaultRecipient = "", docType, locale = "en", onSubmit, onSigned }) {
+  const S = edCopy(locale).sig;
   const canvasRef = useRef(null);
   const padRef = useRef(null);
   const [name, setName] = useState(defaultName);
@@ -22,6 +16,13 @@ export default function SignatureModal({ open, onClose, defaultName = "", defaul
   const [empty, setEmpty] = useState(true);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === "Escape") onClose?.(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
 
   useEffect(() => { if (open) setName((n) => n || defaultName); }, [open, defaultName]);
   useEffect(() => {
@@ -39,8 +40,6 @@ export default function SignatureModal({ open, onClose, defaultName = "", defaul
       if (cancelled) return;
       const canvas = canvasRef.current;
       if (!canvas) return;
-      // Match the backing store to the device pixel ratio, otherwise the drawing
-      // is blurry on retina screens and looks poor once embedded in the PDF.
       const ratio = Math.max(window.devicePixelRatio || 1, 1);
       canvas.width = canvas.offsetWidth * ratio;
       canvas.height = canvas.offsetHeight * ratio;
@@ -57,15 +56,13 @@ export default function SignatureModal({ open, onClose, defaultName = "", defaul
 
   async function submit() {
     setErr("");
-    if (!name.trim()) return setErr("Enter the name you're signing under.");
-    if (empty || padRef.current?.isEmpty()) return setErr("Draw your signature in the box above.");
-    if (!consent) return setErr("Tick the consent box to sign.");
-    if (alsoEmail && !/.+@.+\..+/.test(sendTo.trim())) return setErr("Enter a valid recipient email, or untick sending.");
+    if (!name.trim()) return setErr(S.errName);
+    if (empty || padRef.current?.isEmpty()) return setErr(S.errDraw);
+    if (!consent) return setErr(S.errConsent);
+    if (alsoEmail && !/.+@.+\..+/.test(sendTo.trim())) return setErr(S.errEmail);
 
     setBusy(true);
     try {
-      // The editor places the signature on the invoice, captures the PDF and
-      // stores it — this modal only collects the input.
       const d = await onSubmit({
         png: padRef.current.toDataURL("image/png"),
         name: name.trim(),
@@ -74,9 +71,9 @@ export default function SignatureModal({ open, onClose, defaultName = "", defaul
       onSigned?.(d);
       onClose?.();
     } catch (e) {
-      if (e?.status === 401) setErr("Please sign in again to sign documents.");
-      else if (e?.status === 503) setErr("Signing isn’t set up on the server yet.");
-      else setErr("The signature was added, but saving it failed. Please try again.");
+      if (e?.status === 401) setErr(S.errUnauth);
+      else if (e?.status === 503) setErr(S.errUnavailable);
+      else setErr(S.errFailed);
     } finally {
       setBusy(false);
     }
@@ -85,24 +82,24 @@ export default function SignatureModal({ open, onClose, defaultName = "", defaul
   return (
     <>
       <div className={"overlay" + (open ? " show" : "")} onClick={onClose} />
-      <div className={"modal" + (open ? " show" : "")}>
-        <button className="x" onClick={onClose}>×</button>
-        <div className="modal-title">Sign this {(docType || "invoice").toLowerCase()}</div>
-        <p className="sub">Draw your signature below. It’s embedded into the PDF and stored with a signing record.</p>
+      <div className={"modal" + (open ? " show" : "")} role="dialog" aria-modal="true" aria-label={S.title((docType || "invoice").toLowerCase())}>
+        <button type="button" className="x" onClick={onClose} aria-label="Close">×</button>
+        <div className="modal-title">{S.title((docType || "invoice").toLowerCase())}</div>
+        <p className="sub">{S.sub}</p>
 
-        <label className="sig-label">Full legal name</label>
-        <input className="sp-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Jane Rivera" />
+        <label className="sig-label">{S.nameLabel}</label>
+        <input className="sp-input" value={name} onChange={(e) => setName(e.target.value)} placeholder={S.namePh} />
 
-        <label className="sig-label" style={{ marginTop: 12 }}>Signature</label>
+        <label className="sig-label" style={{ marginTop: 12 }}>{S.sigLabel}</label>
         <div className="sig-wrap">
           <canvas ref={canvasRef} className="sig-canvas" />
-          {empty ? <span className="sig-hint">Draw here</span> : null}
+          {empty ? <span className="sig-hint">{S.drawHere}</span> : null}
         </div>
-        <button className="link-text" onClick={clear} style={{ marginTop: 6 }}>Clear</button>
+        <button type="button" className="link-text" onClick={clear} style={{ marginTop: 6 }}>{S.clear}</button>
 
         <label className="sig-consent" style={{ marginTop: 16 }}>
           <input type="checkbox" checked={alsoEmail} onChange={(e) => setAlsoEmail(e.target.checked)} />
-          <span style={{ color: "var(--ink)" }}>Email the signed copy to the recipient</span>
+          <span style={{ color: "var(--ink)" }}>{S.alsoEmail}</span>
         </label>
         {alsoEmail ? (
           <input
@@ -114,13 +111,13 @@ export default function SignatureModal({ open, onClose, defaultName = "", defaul
 
         <label className="sig-consent">
           <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-          <span>{CONSENT_TEXT}</span>
+          <span>{S.consent}</span>
         </label>
 
-        {err ? <p className="sig-err">{err}</p> : null}
+        {err ? <p className="sig-err" role="alert">{err}</p> : null}
 
-        <button className="btn btn-solid btn-block" onClick={submit} disabled={busy} style={{ marginTop: 14 }}>
-          {busy ? "Signing…" : "Sign & save"}
+        <button type="button" className="btn btn-solid btn-block" onClick={submit} disabled={busy} style={{ marginTop: 14 }}>
+          {busy ? S.signing : S.submit}
         </button>
       </div>
     </>

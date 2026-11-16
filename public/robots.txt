@@ -5,15 +5,21 @@
 # Content Signals separate ACCESS (can you fetch this?) from USE (what may you
 # do with it once fetched). That's why the crawlers below are allowed while
 # ai-train is no — it isn't a contradiction, it's the whole point of the spec.
-# See https://contentsignals.org and Cloudflare's announcement.
+# See https://contentsignals.org and Cloudflare's documentation.
 #
 #   search=yes     index and rank us, link back to the source
 #   ai-input=yes   use our pages to answer a question now (RAG, grounding,
 #                  overviews) — we want to be the answer, with a citation
 #   ai-train=no    do not bake this content into model weights
 #
-# These are stated preferences, not enforcement. Anyone ignoring them is
-# ignoring a request, not defeating a lock.
+# IMPORTANT — Cloudflare Edge Note:
+# If Cloudflare's "Managed robots.txt / AI Crawl Control" is enabled in the
+# dashboard, Cloudflare prepends its own User-agent blocks (e.g. Disallow / for
+# GPTBot, ClaudeBot, Google-Extended, Baiduspider) BEFORE this file. Trailing
+# Allow rules do NOT reliably override prepended Disallow rules across crawlers.
+# Keep Cloudflare Dashboard -> Security -> Bots / AI Crawl Control aligned with
+# this file (disable managed robots.txt prepend if using Content-Signal Allow,
+# or explicitly block training-only bots there and remove overlapping entries).
 
 User-agent: *
 Content-Signal: search=yes,ai-input=yes,ai-train=no
@@ -24,21 +30,26 @@ Disallow: /admin
 Disallow: /api
 Disallow: /webhooks
 
+# Primary search engine crawlers
+User-agent: Googlebot
+Allow: /
+Disallow: /admin
+Disallow: /api
+Disallow: /webhooks
+
 # The signed-in area (/invoicemanager) and share links (/i/...) are deliberately
 # left crawlable so robots can read the "noindex" tag those pages send. Blocking
 # them here would hide that tag, and a URL blocked in robots.txt can still be
 # indexed if something links to it.
 
 # ---------------------------------------------------------------------------
-# Named AI crawlers
-#
-# Each vendor runs several bots with different jobs, and they are listed
-# separately on purpose: the search and user-triggered ones are how we get
-# cited, so they matter most to us. The Content-Signal above carries the
-# no-training preference for all of them.
+# Named AI search & user-triggered retrieval crawlers
+# (Search indexing & live RAG citations allowed; training disallowed via
+# Content-Signal above. Training-only crawlers should be controlled consistently
+# in Cloudflare AI Crawl Control without conflicting Allow blocks.)
 # ---------------------------------------------------------------------------
 
-# OpenAI
+# OpenAI (search & user retrieval)
 User-agent: OAI-SearchBot
 Content-Signal: search=yes,ai-input=yes,ai-train=no
 Allow: /
@@ -53,14 +64,7 @@ Disallow: /admin
 Disallow: /api
 Disallow: /webhooks
 
-User-agent: GPTBot
-Content-Signal: search=yes,ai-input=yes,ai-train=no
-Allow: /
-Disallow: /admin
-Disallow: /api
-Disallow: /webhooks
-
-# Anthropic
+# Anthropic (search & user retrieval)
 User-agent: Claude-SearchBot
 Content-Signal: search=yes,ai-input=yes,ai-train=no
 Allow: /
@@ -75,14 +79,7 @@ Disallow: /admin
 Disallow: /api
 Disallow: /webhooks
 
-User-agent: ClaudeBot
-Content-Signal: search=yes,ai-input=yes,ai-train=no
-Allow: /
-Disallow: /admin
-Disallow: /api
-Disallow: /webhooks
-
-# Perplexity
+# Perplexity (search & user retrieval)
 User-agent: PerplexityBot
 Content-Signal: search=yes,ai-input=yes,ai-train=no
 Allow: /
@@ -91,14 +88,6 @@ Disallow: /api
 Disallow: /webhooks
 
 User-agent: Perplexity-User
-Content-Signal: search=yes,ai-input=yes,ai-train=no
-Allow: /
-Disallow: /admin
-Disallow: /api
-Disallow: /webhooks
-
-# Google / Gemini grounding
-User-agent: Google-Extended
 Content-Signal: search=yes,ai-input=yes,ai-train=no
 Allow: /
 Disallow: /admin

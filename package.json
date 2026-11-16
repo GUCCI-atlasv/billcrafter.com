@@ -12,7 +12,8 @@
     "start": "next start",
     "og": "node scripts/og-manifest.mjs > /tmp/og-manifest.json && python3 scripts/render-og.py /tmp/og-manifest.json public/og",
     "steps": "python3 scripts/render-steps.py public/steps",
-    "images": "npm run og && npm run steps && npm run anatomy",
+    "ocr-assets": "node scripts/render-ocr-assets.mjs",
+    "images": "npm run og && npm run steps && npm run anatomy && npm run ocr-assets",
     "anatomy": "python3 scripts/render-anatomy.py public/anatomy"
   },
   "dependencies": {

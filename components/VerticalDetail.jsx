@@ -6,6 +6,7 @@ import { AD_SLOTS } from "@/lib/ads";
 import Link from "next/link";
 import { VERTICALS } from "@/lib/seo";
 import { Byline, Sources } from "./ContentMeta";
+import VerticalExamples from "./VerticalExamples";
 
 function Check() {
   return (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ width: 15, height: 15, flex: "none", marginTop: 3, color: "var(--brand)" }}><polyline points="20 6 9 17 4 12" /></svg>);
@@ -16,6 +17,7 @@ const CORE_WORKFLOW = [
   { slug: "quote-generator", href: "/quote-generator", mark: "Q", name: "Quote generator", desc: "Fixed-price business quotes" },
   { slug: "estimate-generator", href: "/estimate-generator", mark: "E", name: "Estimate generator", desc: "Labor & materials job estimates" },
   { slug: "receipt-maker", href: "/receipt-maker", mark: "R", name: "Receipt maker", desc: "Instant Paid proof of payment" },
+  { slug: "invoice-ocr-scanner", href: "/invoice-ocr-scanner", mark: "AI", name: "Invoice & receipt OCR", desc: "Scan PDF/photo bills to Excel & CSV" },
 ];
 
 const CORE_FALLBACK_BY_SLUG = {
@@ -76,6 +78,8 @@ export default function VerticalDetail({ v }) {
           </ul>
         </div>
       </nav>
+
+      <VerticalExamples slug={v.slug} />
 
       <section className="band" id="anatomy">
         <div className="wrap">

@@ -11,7 +11,7 @@
 // user agent, and a SHA-256 of the precise bytes we stored.
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getEnv, getSessionUser } from "@/lib/server/auth";
-import { sendPdfEmail, isEmail } from "@/lib/server/email";
+import { sendPdfEmail, isEmail, consumeEmailRateLimit } from "@/lib/server/email";
 
 export const dynamic = "force-dynamic";
 
@@ -147,18 +147,23 @@ export async function POST(request) {
       if (!isEmail(sendTo)) {
         emailed = { ok: false, error: "invalid_recipient" };
       } else {
-        const label = docType || "invoice";
-        const r = await sendPdfEmail(env, {
-          user,
-          to: String(sendTo).trim(),
-          subject: emailSubject || `Signed ${label}${invoiceNo ? ` ${invoiceNo}` : ""} from ${name}`,
-          message: emailMessage ||
-            `Hi,\n\nPlease find the signed ${String(label).toLowerCase()}${invoiceNo ? ` ${invoiceNo}` : ""} attached.\n\nThank you,\n${name}`,
-          filename: `${safeNo}-signed.pdf`,
-          pdfBase64: bytesToB64(outBytes),
-          footerNote: `Electronically signed by ${name} on ${new Date(signedAt).toISOString()}. Verification reference: ${sha256.slice(0, 16)}…`,
-        });
-        emailed = r.ok ? { ok: true, to: String(sendTo).trim() } : { ok: false, error: r.error };
+        const rl = await consumeEmailRateLimit(env, { request, user, scope: "outbound" });
+        if (!rl.ok) {
+          emailed = { ok: false, error: rl.error };
+        } else {
+          const label = docType || "invoice";
+          const r = await sendPdfEmail(env, {
+            user,
+            to: String(sendTo).trim(),
+            subject: emailSubject || `Signed ${label}${invoiceNo ? ` ${invoiceNo}` : ""} from ${name}`,
+            message: emailMessage ||
+              `Hi,\n\nPlease find the signed ${String(label).toLowerCase()}${invoiceNo ? ` ${invoiceNo}` : ""} attached.\n\nThank you,\n${name}`,
+            filename: `${safeNo}-signed.pdf`,
+            pdfBase64: bytesToB64(outBytes),
+            footerNote: `Electronically signed by ${name} on ${new Date(signedAt).toISOString()}. Verification reference: ${sha256.slice(0, 16)}…`,
+          });
+          emailed = r.ok ? { ok: true, to: String(sendTo).trim() } : { ok: false, error: r.error };
+        }
       }
     }
 

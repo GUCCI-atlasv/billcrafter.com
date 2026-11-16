@@ -33,6 +33,9 @@ export async function POST(request) {
   await del("DELETE FROM recurring WHERE user_id = ?", uid);
   await del("DELETE FROM email_log WHERE user_id = ?", uid);
   const r = await env.DB.prepare("DELETE FROM users WHERE id = ?").bind(uid).run();
+  if (env.SESSIONS) {
+    try { await env.SESSIONS.delete("user:" + em); } catch {}
+  }
 
   try { await env.DB.prepare("INSERT INTO audit_log (admin_email, action, target, created_at) VALUES (?, ?, ?, ?)").bind(admin.email, "Deleted user", em, Date.now()).run(); } catch {}
   return Response.json({ ok: true, deleted: r.meta?.changes || 0 });

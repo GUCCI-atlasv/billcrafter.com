@@ -50,21 +50,20 @@ export function howToSchema({ name, description, steps, url, locale = "en" }) {
   };
 }
 
-// Build a schema.org Article for a content page. Adds the author + publisher +
-// datePublished/dateModified that the GEO audit flagged as missing (provenance
-// and freshness signals AI engines use to decide whether to cite a page).
-export function articleSchema({ headline, description, url }) {
+// Build a schema.org Article for a content page using organizational authorship
+// consistent with the site's Organization entity.
+export function articleSchema({ headline, description, url, locale = "en", dateModified = SITE_UPDATED }) {
   return {
     "@context": "https://schema.org",
     "@type": "Article",
     headline,
     ...(description ? { description } : {}),
     ...(url ? { mainEntityOfPage: url, url } : {}),
-    author: { "@type": "Person", name: AUTHOR.name, jobTitle: AUTHOR.role, description: AUTHOR.description, url: AUTHOR.url },
+    author: { "@type": "Organization", "@id": "https://billcrafter.com/#organization", name: PUBLISHER, url: "https://billcrafter.com/about#maintainer" },
     publisher: { "@type": "Organization", name: PUBLISHER, "@id": "https://billcrafter.com/#organization" },
     datePublished: SITE_PUBLISHED,
-    dateModified: SITE_UPDATED,
+    dateModified,
     isAccessibleForFree: true,
-    inLanguage: "en",
+    inLanguage: locale,
   };
 }

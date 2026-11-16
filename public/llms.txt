@@ -1,47 +1,54 @@
 # BillCrafter
 
-> Free online invoice generator for freelancers and small businesses. Create invoices, estimates, quotes and receipts in the browser, then download a clean, pixel-accurate PDF. No signup required to download your first PDF. Operated by CCC STUDIO (United States).
+> Free online invoice generator and AI receipt/invoice OCR scanner for freelancers, contractors, and small businesses. Create invoices, estimates, quotes and receipts in the browser (pixel-accurate vector PDF, no watermark), or scan paper receipts and PDF invoices to clean Excel (.xlsx) & CSV spreadsheets. No signup required to start. Operated by CCC STUDIO (United States).
 
 ## What it does
 
-- Invoice generator, estimate & quote generator, and receipt maker in one editor.
-- 45 free, editable templates across 8 layouts and 9 industry categories.
-- WYSIWYG editing: type directly on the document; totals and tax calculate live.
-- Multi-currency and region-aware tax formatting; 25+ currencies incl. USD, EUR, GBP, INR, USDT/USDC.
-- Free tier: 1 PDF export per day without an account; unlimited exports, status stamps, share links, e-signature, and recurring invoices with a free account (no paid plans).
-- Every document downloads as PDF — one format, pixel-accurate, no watermark on any plan.
+- **WYSIWYG Invoice, Estimate, Quote & Receipt Generator**: type directly onto the sheet; totals and tax calculate live.
+- **AI Invoice & Receipt OCR Scanner** (`/invoice-ocr-scanner` & `/receipt-to-csv-converter`): upload PDF invoices, phone receipt photos, or paste screenshots (`⌘V`/`Ctrl+V`). Structured vision AI extracts vendor details, tax IDs, dates, currency, itemized lines, tax, and tips — with automatic `Subtotal + Tax = Total` arithmetic verification.
+- **Multi-format Spreadsheet & PDF Exports**:
+  - Clean UTF-8 BOM `.csv` (Itemized Lines, 1-row-per-receipt Expense Report Ledger, or QuickBooks/Xero import columns).
+  - Genuine two-sheet Microsoft Excel `.xlsx` workbooks (`Summary` + `Line Items`) with live `=SUM()` formulas.
+  - One-click bridge from OCR straight into the Invoice Editor to recreate a clean PDF or bundle supplier receipts into a **client reimbursement invoice** with receipt photos attached.
+- **45 free, editable templates** across 8 layouts and 9 industry categories.
+- **Multi-currency & global tax support**: 25+ currencies incl. USD, EUR, GBP, CAD, AUD, JPY, HKD, TWD, INR, and USDT/USDC/GRAM.
+- **Generous 100% free model**:
+  - Without an account: 1 PDF invoice export/day + 3 AI OCR scans/day (plus unlimited sample-bill testing).
+  - With a free account ($0, no paid plans): unlimited PDF exports, 20 AI OCR scans/day, 10-file batch receipt merging, e-signature, share links, recurring invoices, and outbound invoice email (up to 3 emails/day anti-abuse cap).
 
 ## Built for how trades and services actually bill
 
-These are the parts that differ from a generic invoice form, and the reason
-someone in a trade would pick this over a blank template:
-
 - **Job site address** — separate from the billing address, because trades bill the work location.
-- **Sections with their own subtotals** — group lines under Labor and Materials, or under rate bands like "Senior consultant — $185/hr". Each heading totals itself.
-- **Deposit due** — request a percentage or fixed amount up front. It prints on the document without changing the total.
-- **Payment schedule** — a milestone table on the invoice: deposit, progress payments, final, each with a date and amount.
-- **Job photos** — up to six captioned before/after photos at the foot of the invoice, exported inside the PDF. Used as proof of work by contractors, cleaners and pressure washing businesses.
-- **Timesheet mode** — a date column, hours instead of quantity, and a total-hours line, for anyone billing time.
-- **Service period** — the span of visits an invoice covers and how often you attend, for recurring cleaning, grounds maintenance and maintenance plans.
-- **E-signature** — sign an invoice and email the signed PDF, with a signing record kept.
-- **Crypto payment block** — USDT/USDC wallet address, network and a scannable QR code.
+- **Sections with their own subtotals** — group lines under Labor and Materials, Reimbursable Expenses, or rate bands like "Senior consultant — $185/hr".
+- **Deposit due & Milestone payment schedule** — request a percentage/fixed booking deposit and print a multi-stage payment schedule right on the sheet.
+- **Job & Receipt photos** — up to six captioned before/after or expense-receipt photos at the foot of the invoice, exported inside the PDF.
+- **Timesheet mode** — dated entries, hours per row, and an automatic total-hours summary line.
+- **E-signature & Crypto payment block** — sign invoices online or include a scannable USDT/USDC/GRAM wallet QR code.
 
 ## Key pages
 
-- Home / invoice generator: https://billcrafter.com/
-- All templates: https://billcrafter.com/templates
-- Template categories: https://billcrafter.com/templates/c/freelance-creative, /trades-construction, /home-auto, /health-beauty, /professional-services, /events-food, /retail-business, /estimates-quotes, /receipts
+### Core Tools
 
-### Document types
-
+- Home / Free invoice generator: https://billcrafter.com/
+- AI Invoice & Receipt OCR scanner: https://billcrafter.com/invoice-ocr-scanner
+- Receipt photo to CSV & Excel converter: https://billcrafter.com/receipt-to-csv-converter
+- PDF invoice to Excel (.xlsx) converter: https://billcrafter.com/invoice-to-excel-converter
 - Estimate generator: https://billcrafter.com/estimate-generator
 - Quote generator: https://billcrafter.com/quote-generator
 - Receipt maker: https://billcrafter.com/receipt-maker
 - Rent receipt maker: https://billcrafter.com/rent-receipt-maker
 - Proforma invoice generator: https://billcrafter.com/proforma-invoice-generator
 - Bill generator: https://billcrafter.com/bill-generator
+- All 45 templates: https://billcrafter.com/templates
 
-### Guides by trade
+### Editorial Benchmarks & Tutorials
+
+- Guides hub: https://billcrafter.com/guides
+- Help & worked examples (Invoicing, OCR, Saving & Quotas): https://billcrafter.com/guides/billing-and-ocr-help-guide
+- 7 Best Free Invoice OCR Software in 2026 (Feature & Limit Comparison): https://billcrafter.com/guides/best-free-invoice-ocr-software
+- How to Scan Receipt Photos to CSV & Excel Free: https://billcrafter.com/guides/how-to-scan-receipts-to-excel
+
+### Guides by trade & billing scenario
 
 - Freelance: https://billcrafter.com/freelance-invoice-generator
 - Freelance design & photography quote: https://billcrafter.com/freelance-design-quote-generator
@@ -56,9 +63,6 @@ someone in a trade would pick this over a blank template:
 - Pressure washing: https://billcrafter.com/pressure-washing-invoice-template
 - Attorney / legal: https://billcrafter.com/attorney-invoice-template
 - Tutoring: https://billcrafter.com/tutoring-invoice-template
-
-### Guides by billing situation
-
 - Hourly invoice: https://billcrafter.com/hourly-invoice
 - Timesheet invoice: https://billcrafter.com/timesheet-invoice
 - Deposit invoice: https://billcrafter.com/deposit-invoice
@@ -67,19 +71,18 @@ someone in a trade would pick this over a blank template:
 
 ### Company
 
-- Pricing: https://billcrafter.com/#pricing
 - About: https://billcrafter.com/about
 - Changelog: https://billcrafter.com/changelog
 - Contact: https://billcrafter.com/contact
 
 ## Languages
 
-Available in 15 languages with market-specific tax wording and currency:
-English, Spanish, Portuguese, French, German, Italian, Traditional Chinese,
-Russian, Bengali, Korean, Japanese, Dutch, Swedish, Indonesian, Vietnamese.
-Each language has one canonical home page at https://billcrafter.com/<code>.
+Invoice generator available in 15 languages at `https://billcrafter.com/<code>` (with server-rendered `<html lang>` and market-specific currency/tax defaults):
+English, Spanish, Portuguese, French, German, Italian, Traditional Chinese, Russian, Bengali, Korean, Japanese, Dutch, Swedish, Indonesian, Vietnamese.
+Localized AI Invoice OCR & Receipt-to-CSV tools are also available natively in German (`/de/invoice-ocr-scanner`), Spanish (`/es/invoice-ocr-scanner`), French (`/fr/invoice-ocr-scanner`), Japanese (`/ja/invoice-ocr-scanner`), Traditional Chinese (`/zh-Hant/invoice-ocr-scanner`), and Portuguese (`/pt/invoice-ocr-scanner`).
 
 ## Notes
 
-- BillCrafter is a document tool, not an accounting or legal service. Tax and contract rules vary by country and state, and the guides say so where it matters — in Brazil a PDF from here doesn't replace the nota fiscal, in Italy the SdI submission, in Korea a Hometax tax invoice, in Taiwan a 統一發票.
-- Content use: search and AI-answer citation are welcome, model training is not. See https://billcrafter.com/robots.txt (`Content-Signal: search=yes,ai-input=yes,ai-train=no`).
+- Privacy: Guest OCR uploads are processed strictly in volatile memory via Google Cloud Vertex AI (enterprise zero-training governance) and discarded immediately after extraction.
+- BillCrafter is a document and extraction utility, not an accounting or legal firm. Tax and e-invoicing rules vary by jurisdiction.
+- Content use: search indexing and AI-assistant citation are welcome; model training is not (`Content-Signal: search=yes,ai-input=yes,ai-train=no`).

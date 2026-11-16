@@ -2,6 +2,11 @@
 // Reads the token from KV first so login works when D1 is over quota.
 import { getEnv, upsertUser, createSession, sessionCookie, consumeMagicToken } from "@/lib/server/auth";
 
+// Ignore HEAD preflight requests from email security scanners so they don't consume the one-time token.
+export async function HEAD() {
+  return new Response(null, { status: 200 });
+}
+
 export async function GET(request) {
   const url = new URL(request.url);
   const origin = url.origin;

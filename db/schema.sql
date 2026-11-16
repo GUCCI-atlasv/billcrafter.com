@@ -203,3 +203,22 @@ CREATE TABLE IF NOT EXISTS recurring (
   runs INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_recurring_due ON recurring(active, next_run);
+
+-- OCR daily usage tracking (db/0017_ocr_usage.sql)
+CREATE TABLE IF NOT EXISTS ocr_daily_usage (
+  subject     TEXT NOT NULL,   -- 'ip:<addr>' or 'u:<user_id>'
+  day         TEXT NOT NULL,   -- 'YYYY-MM-DD' (UTC)
+  count       INTEGER NOT NULL DEFAULT 0,
+  updated_at  INTEGER NOT NULL,
+  PRIMARY KEY (subject, day)
+);
+CREATE INDEX IF NOT EXISTS idx_ocr_usage_day ON ocr_daily_usage(day);
+
+-- Email daily usage tracking (db/0018_email_rate_limit.sql)
+CREATE TABLE IF NOT EXISTS email_daily_usage (
+  subject     TEXT NOT NULL,   -- e.g. 'outbound:u:<id>' or 'outbound:ip:<addr>'
+  day         TEXT NOT NULL,   -- 'YYYY-MM-DD' (UTC)
+  count       INTEGER NOT NULL DEFAULT 0,
+  updated_at  INTEGER NOT NULL,
+  PRIMARY KEY (subject, day)
+);

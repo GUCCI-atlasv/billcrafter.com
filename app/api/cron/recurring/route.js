@@ -5,6 +5,7 @@
 // job cannot attach one. Instead each run mints a share link and emails that —
 // which also gives the sender view tracking for free.
 import { getEnv } from "@/lib/server/auth";
+import { sendEmail } from "@/lib/server/email";
 import { nextRun, catchUp } from "@/lib/server/recurring";
 import { nextInvNo } from "@/lib/invoice";
 
@@ -48,22 +49,18 @@ export async function POST(request) {
       const url = `${base}/i/${tk}`;
 
       // Email the client.
-      if (env.EMAIL_API_KEY) {
+      if (env.EMAIL) {
         const subject = `Invoice ${doc.f?.invNo || ""} from ${doc.f?.fromName || "BillCrafter"}`.trim();
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { authorization: `Bearer ${env.EMAIL_API_KEY}`, "content-type": "application/json" },
-          body: JSON.stringify({
-            from: env.EMAIL_FROM || "BillCrafter <noreply@billcrafter.com>",
-            to: [row.to_email],
-            reply_to: row.user_email || undefined,
-            subject,
-            html: `<p>Hi,</p><p>Your ${esc(doc.type || "invoice")} ${esc(doc.f?.invNo || "")} is ready.</p>
-                   <p><a href="${url}" style="display:inline-block;background:#2D2F33;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">View invoice</a></p>
-                   <p style="color:#888;font-size:12px">Sent automatically via BillCrafter · billcrafter.com</p>`,
-          }),
+        const res = await sendEmail(env, {
+          to: row.to_email,
+          replyTo: row.user_email || undefined,
+          subject,
+          html: `<p>Hi,</p><p>Your ${esc(doc.type || "invoice")} ${esc(doc.f?.invNo || "")} is ready.</p>
+                 <p><a href="${url}" style="display:inline-block;background:#2D2F33;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none">View invoice</a></p>
+                 <p style="color:#888;font-size:12px">Sent automatically via BillCrafter · billcrafter.com</p>`,
+          text: `Hi,\n\nYour ${doc.type || "invoice"} ${doc.f?.invNo || ""} is ready.\n\nView invoice: ${url}\n\nSent automatically via BillCrafter · billcrafter.com`,
         });
-        if (!res.ok) throw new Error("email_failed");
+        if (!res.ok) throw new Error(res.detail || "email_failed");
       }
 
       await env.DB.prepare(

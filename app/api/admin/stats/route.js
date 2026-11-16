@@ -50,9 +50,12 @@ export async function GET(request) {
     const traffic = await many("SELECT event, user_email, ip, country, path, template, doc_type, format, created_at FROM analytics_log ORDER BY created_at DESC LIMIT 40");
     const uniqueVisitors = new Set(traffic.filter((t) => t.event === "visit" && t.ip).map((t) => t.ip)).size;
     const exportsTotal = (await one("SELECT COUNT(*) c FROM analytics_log WHERE event = 'export'")).c || 0;
+    const ocrScansTotal = (await one("SELECT COUNT(*) c FROM analytics_log WHERE event = 'ocr_scan_success'")).c || 0;
+    const todayUtc = new Date().toISOString().slice(0, 10);
+    const ocrToday = (await one("SELECT COALESCE(SUM(count), 0) c FROM ocr_daily_usage WHERE day = ?", todayUtc)).c || 0;
     const topTemplates = await many("SELECT template, COUNT(*) c FROM analytics_log WHERE event = 'export' AND template IS NOT NULL GROUP BY template ORDER BY c DESC LIMIT 10");
 
-    const body = { ok: true, kpis: { users, invoices, clients, emailsSent, uniqueVisitors, exportsTotal }, recentUsers, audit, emails, traffic, topTemplates };
+    const body = { ok: true, kpis: { users, invoices, clients, emailsSent, uniqueVisitors, exportsTotal, ocrScansTotal, ocrToday }, recentUsers, audit, emails, traffic, topTemplates };
     if (env.SESSIONS) {
       try { await env.SESSIONS.put(CACHE_KEY, JSON.stringify(body), { expirationTtl: CACHE_TTL }); } catch { /* ignore */ }
     }

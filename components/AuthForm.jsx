@@ -41,6 +41,12 @@ export default function AuthForm({ mode = "login" }) {
       const r = await fetch("/api/auth/magic", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email: em }) });
       if (r.status === 503) { setErr("Magic links require the deployed backend (D1). Try password below in local dev."); return; }
       const d = await r.json().catch(() => ({}));
+      if (r.status === 429) {
+        setErr(d?.error === "daily_limit_exceeded"
+          ? "Daily email limit reached (3/day). Please use password or Google sign-in."
+          : "Please wait a minute before requesting another sign-in link.");
+        return;
+      }
       if (r.ok && d.ok && d.sent) { setInfo(`We emailed a sign-in link to ${em}. Check your inbox.`); return; }
       if (r.ok && d.ok && d.devLink) { setInfo("Email isn’t configured yet — use this one-time link:"); setDevLink(d.devLink); return; }
       setErr("Couldn’t send the link. Please try again.");
@@ -74,7 +80,7 @@ export default function AuthForm({ mode = "login" }) {
         <div style={{ background: "var(--card)", border: "1px solid var(--line-2)", borderRadius: 16, padding: 28 }}>
           <h1 style={{ fontSize: 21, marginBottom: 4 }}>{isSignup ? "Create your free account" : "Welcome back"}</h1>
           <p className="muted" style={{ fontSize: 13, margin: "0 0 18px" }}>
-            {isSignup ? "Save your invoices, reuse clients, and get 5 free exports every month." : "Sign in to your invoices, clients and history."}
+            {isSignup ? "Unlimited PDF exports, 20 AI OCR scans/day, up to 3 invoice emails/day, plus saved clients & history — 100% free." : "Sign in to your invoices, clients and history."}
           </p>
 
           <a href="/api/auth/google" className="btn btn-ghost btn-block" style={{ padding: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }}>

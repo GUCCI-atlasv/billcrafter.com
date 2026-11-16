@@ -1,4 +1,6 @@
-// Admin: change own password (requires current password).
+// Admin: change own password.
+// Password-authenticated sessions must confirm their current password;
+// Google OAuth and email-reset sessions can set a new password directly.
 import { getEnv, hashPassword, verifyPassword } from "@/lib/server/auth";
 import { getAdmin } from "@/lib/server/admin";
 
@@ -11,13 +13,17 @@ export async function POST(request) {
   const { currentPassword, newPassword } = await request.json().catch(() => ({}));
   const current = typeof currentPassword === "string" ? currentPassword : "";
   const next = typeof newPassword === "string" ? newPassword : "";
-  if (!current || next.length < 6) {
+  const requiresCurrent = admin.authMethod !== "google" && admin.authMethod !== "reset";
+  if ((requiresCurrent && !current) || next.length < 6) {
     return Response.json({ ok: false, error: "bad_request" }, { status: 400 });
   }
 
-  const row = await env.DB.prepare("SELECT id, email, password_hash FROM admins WHERE id = ? OR email = ?")
-    .bind(admin.id, admin.email).first();
-  if (!row?.password_hash || !(await verifyPassword(current, row.password_hash))) {
+  const row = await env.DB.prepare("SELECT id, email, password_hash FROM admins WHERE id = ? OR lower(email) = ?")
+    .bind(admin.id, admin.email.toLowerCase()).first();
+  if (!row) {
+    return Response.json({ ok: false, error: "not_found" }, { status: 404 });
+  }
+  if (requiresCurrent && (!row.password_hash || !(await verifyPassword(current, row.password_hash)))) {
     return Response.json({ ok: false, error: "invalid_current" }, { status: 401 });
   }
 
